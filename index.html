@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tra Cứu Hóa Đơn - Galaxy Studio</title>
-    <!-- Thư viện JSZip để đọc trực tiếp file ZIP hóa đơn -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         * { box-sizing: border-box; }
@@ -13,28 +12,21 @@
         .card { background: #fff; padding: 24px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 20px; }
         .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e8e8e8; padding-bottom: 15px; margin-bottom: 20px; }
         h2 { margin: 0; color: #0050b3; font-size: 22px; }
-        
-        .btn { background: #1890ff; color: white; border: none; padding: 10px 18px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; transition: background 0.2s; }
-        .btn:hover { background: #40a9ff; }
-        .btn-reload { background: #52c41a; }
+        .btn-reload { background: #52c41a; color: white; border: none; padding: 10px 18px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; }
         .btn-reload:hover { background: #73d13d; }
-
-        .status-box { padding: 12px 16px; border-radius: 6px; font-weight: 500; margin-bottom: 20px; font-size: 14px; display: flex; justify-content: space-between; align-items: center; }
+        .status-box { padding: 12px 16px; border-radius: 6px; font-weight: 500; margin-bottom: 20px; font-size: 14px; }
         .status-info { background: #e6f7ff; border: 1px solid #91d5ff; color: #0958d9; }
         .status-success { background: #f6ffed; border: 1px solid #b7eb8f; color: #389e0d; }
         .status-error { background: #fff2f0; border: 1px solid #ffccc7; color: #cf1322; }
-
         .search-container { margin-bottom: 20px; }
-        .search-input { width: 100%; padding: 12px 16px; border: 1px solid #d9d9d9; border-radius: 6px; outline: none; font-size: 15px; transition: border 0.2s; }
-        .search-input:focus { border-color: #40a9ff; box-shadow: 0 0 0 2px rgba(24,144,255,0.2); }
-
+        .search-input { width: 100%; padding: 12px 16px; border: 1px solid #d9d9d9; border-radius: 6px; outline: none; font-size: 15px; }
         table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 6px; overflow: hidden; }
         th, td { border: 1px solid #f0f0f0; padding: 12px 15px; text-align: left; font-size: 14px; }
         th { background: #fafafa; font-weight: 600; color: #595959; }
         tr:hover { background: #fafafa; }
         .text-center { text-align: center; }
         .text-right { text-align: right; }
-        .badge-tax { color: #1890ff; font-weight: bold; background: #e6f7ff; padding: 3px 8px; border-radius: 4px; display: inline-block; }
+        .badge-tax { color: #1890ff; font-weight: bold; background: #e6f7ff; padding: 3px 8px; border-radius: 4px; }
     </style>
 </head>
 <body>
@@ -43,11 +35,11 @@
     <div class="card">
         <div class="header">
             <h2>🏢 Tra Cứu Hóa Đơn Nội Bộ (Galaxy Studio)</h2>
-            <button class="btn btn-reload" onclick="loadInvoicesFromGitHub()">🔄 Tải Lại Dữ Liệu</button>
+            <button class="btn-reload" onclick="loadInvoicesFromGitHub()">🔄 Tải Lại Dữ Liệu</button>
         </div>
 
         <div id="statusBox" class="status-box status-info">
-            <span>⏳ Đang quét dữ liệu hóa đơn từ hệ thống...</span>
+            ⏳ Đang kết nối kho dữ liệu GitHub...
         </div>
 
         <div class="search-container">
@@ -66,31 +58,24 @@
                 </tr>
             </thead>
             <tbody id="invoiceList">
-                <tr><td colspan="6" class="text-center" style="color:#999; padding: 30px;">Đang lấy danh sách hóa đơn...</td></tr>
+                <tr><td colspan="6" class="text-center" style="color:#999; padding: 30px;">Đang tải danh sách...</td></tr>
             </tbody>
         </table>
     </div>
 </div>
 
 <script>
-    // Tự động nhận diện Repository Name từ đường dẫn URL trang GitHub Pages
     const pathSegments = window.location.pathname.split('/').filter(Boolean);
     const repoName = pathSegments.length > 0 ? pathSegments[0] : '';
     const ownerName = window.location.hostname.split('.')[0];
-
     let allInvoices = [];
 
-    // Tự động chạy khi mở trang web
-    window.addEventListener('DOMContentLoaded', () => {
-        loadInvoicesFromGitHub();
-    });
+    window.addEventListener('DOMContentLoaded', () => { loadInvoicesFromGitHub(); });
 
-    // Hàm gọi GitHub API lấy danh sách tất cả file trong thư mục DATA
     async function loadInvoicesFromGitHub() {
-        setStatus("info", "⏳ Đang kết nối tới kho dữ liệu GitHub...");
-        
+        setStatus("info", "⏳ Đang quét danh sách file trong thư mục DATA...");
         if (!ownerName || !repoName) {
-            setStatus("error", "⚠️ Trang web cần được chạy trên GitHub Pages để tự động tải danh sách file.");
+            setStatus("error", "⚠️ Hãy chạy trang web trên đường dẫn GitHub Pages.");
             return;
         }
 
@@ -100,9 +85,9 @@
             const res = await fetch(apiUrl);
             if (!res.ok) {
                 if (res.status === 404) {
-                    setStatus("error", "⚠️ Chưa tìm thấy thư mục 'DATA' trong dự án. Bạn hãy tạo thư mục 'DATA' và thêm các file XML/ZIP vào nhé.");
+                    setStatus("error", "⚠️ Chưa thấy thư mục 'DATA'. Bạn hãy tạo thư mục tên 'DATA' trên máy và chép file XML/ZIP vào nhé.");
                 } else {
-                    setStatus("error", `❌ Lỗi truy cập dữ liệu (${res.status}).`);
+                    setStatus("error", `❌ Lỗi lấy dữ liệu (${res.status}).`);
                 }
                 renderTable([]);
                 return;
@@ -112,15 +97,12 @@
             const xmlOrZipFiles = files.filter(f => f.name.endsWith('.xml') || f.name.endsWith('.zip'));
 
             if (xmlOrZipFiles.length === 0) {
-                setStatus("info", "📁 Thư mục DATA hiện chưa có file hóa đơn XML hoặc ZIP nào.");
+                setStatus("info", "📁 Thư mục DATA hiện chưa có file hóa đơn XML/ZIP nào.");
                 renderTable([]);
                 return;
             }
 
-            setStatus("info", `⏳ Đang xử lý ${xmlOrZipFiles.length} file hóa đơn...`);
             allInvoices = [];
-
-            // Đọc song song tất cả các file hóa đơn
             await Promise.all(xmlOrZipFiles.map(async (file) => {
                 try {
                     if (file.name.endsWith('.xml')) {
@@ -131,7 +113,6 @@
                         const contentRes = await fetch(file.download_url);
                         const blob = await contentRes.blob();
                         const zip = await JSZip.loadAsync(blob);
-                        
                         for (let relativePath in zip.files) {
                             if (relativePath.endsWith('.xml')) {
                                 const xmlText = await zip.files[relativePath].async('string');
@@ -139,32 +120,22 @@
                             }
                         }
                     }
-                } catch (err) {
-                    console.error("Lỗi đọc file:", file.name, err);
-                }
+                } catch (e) {}
             }));
-
-            // Sắp xếp hóa đơn theo ngày mới nhất lên đầu
-            allInvoices.sort((a, b) => new Date(b.date) - new Date(a.date));
 
             setStatus("success", `✅ Đã tải thành công ${allInvoices.length} hóa đơn từ thư mục DATA!`);
             renderTable(allInvoices);
-
         } catch (err) {
-            console.error(err);
-            setStatus("error", "❌ Không thể kết nối tới GitHub API: " + err.message);
+            setStatus("error", "❌ Lỗi kết nối: " + err.message);
         }
     }
 
-    // Đọc thông tin từ file XML Hóa đơn điện tử chuẩn TCT
     function parseAndAddXml(xmlText) {
         try {
             const xml = new DOMParser().parseFromString(xmlText, "text/xml");
             const getTxt = (tag) => { const el = xml.querySelector(tag); return el ? el.textContent.trim() : ""; };
-            
             const sellerTax = getTxt("NBan > MST") || getTxt("MSTNBan") || getTxt("SellerTaxCode");
             const number = getTxt("SHDon") || getTxt("SOHDON") || getTxt("InvoiceNumber");
-            
             if (!sellerTax || !number) return;
 
             allInvoices.push({
@@ -178,18 +149,14 @@
         } catch(e) {}
     }
 
-    // Hiển thị danh sách ra bảng HTML
     function renderTable(list) {
         const tbody = document.getElementById("invoiceList");
         tbody.innerHTML = "";
-        
         if (!list.length) {
-            tbody.innerHTML = `<tr><td colspan="6" class="text-center" style="color:#999; padding: 30px;">Không tìm thấy dữ liệu hóa đơn phù hợp.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center" style="color:#999; padding: 30px;">Chưa có dữ liệu hóa đơn.</td></tr>`;
             return;
         }
-
         const fmt = (v) => v ? Number(v).toLocaleString("vi-VN") : "0";
-        
         list.forEach((inv, i) => {
             tbody.innerHTML += `
                 <tr>
@@ -204,23 +171,20 @@
         });
     }
 
-    // Lọc bảng theo từ khóa tìm kiếm
     function filterTable() {
         const kw = document.getElementById("searchInput").value.toLowerCase();
         const filtered = allInvoices.filter(inv => 
             inv.sellerTax.toLowerCase().includes(kw) ||
             inv.sellerName.toLowerCase().includes(kw) ||
-            inv.number.toLowerCase().includes(kw) ||
-            inv.date.toLowerCase().includes(kw)
+            inv.number.toLowerCase().includes(kw)
         );
         renderTable(filtered);
     }
 
-    // Thay đổi trạng thái thông báo
     function setStatus(type, msg) {
         const el = document.getElementById("statusBox");
         el.className = `status-box status-${type}`;
-        el.innerHTML = `<span>${msg}</span>`;
+        el.innerHTML = msg;
     }
 </script>
 
