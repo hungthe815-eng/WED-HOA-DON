@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ Thống Tra Cứu Hóa Đơn Từ OneDrive</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        .card { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 20px; }
+        h2 { margin-top: 0; color: #1890ff; font-size: 20px; }
+        .status-box { background: #e6f7ff; border: 1px solid #91d5ff; padding: 12px; border-radius: 6px; font-weight: bold; color: #096dd9; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
+        .btn-refresh { background: #1890ff; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .btn-refresh:hover { background: #40a9ff; }
+        .search-input { width: 100%; padding: 10px 15px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 15px; margin-bottom: 15px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #e8e8e8; padding: 10px; text-align: left; font-size: 14px; }
+        th { background: #fafafa; font-weight: 600; }
+        tr:hover { background: #f5f5f5; }
+        .btn-view { background: #52c41a; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        
+        /* Modal Popup */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; overflow-y: auto; }
+        .modal-content { background: #fff; width: 90%; max-width: 800px; margin: 30px auto; padding: 25px; border-radius: 8px; position: relative; }
+        .close-btn { position: absolute; top: 10px; right: 15px; font-size: 24px; cursor: pointer; color: #999; }
+        .inv-header { text-align: center; border-bottom: 2px solid #1890ff; padding-bottom: 10px; }
+        .inv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 15px 0; }
+        .inv-box { background: #fafafa; padding: 10px; border-radius: 4px; border: 1px solid #eee; }
+        .total-price { font-size: 16px; font-weight: bold; color: #f5222d; text-align: right; margin-top: 15px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="card">
+        <h2>Tra Cứu Hóa Đơn Điện Tử (Đồng bộ kho OneDrive)</h2>
+        
+        <div class="status-box">
+            <span id="syncStatus">🔄 Đang kết nối và tải hóa đơn từ OneDrive...</span>
+            <button class="btn-refresh" onclick="fetchFromOneDrive()">🔄 Tải lại dữ liệu</button>
+        </div>
+
+        <input type="text" id="searchInput" class="search-input" placeholder="Nhập Mã Số Thuế NCC, Tên Nhà Cung Cấp hoặc Số Hóa Đơn..." oninput="filterTable()">
+
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 40px;">STT</th>
+                    <th style="width: 100px;">Ngày lập</th>
+                    <th>Ký hiệu - Số HĐ</th>
+                    <th>MST NCC</th>
+                    <th>Tên Nhà Cung Cấp</th>
+                    <th style="width: 120px;">Tổng tiền</th>
+                    <th style="width: 70px;">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody id="invoiceList">
+                <tr><td colspan="7" class="text-center" style="color: #999;">Đang quét kho dữ liệu...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- POPUP XEM CHI TIẾT HÓA ĐƠN -->
+<div id="viewModal" class="modal">
+    <div class="modal-content">
+        <span class="close-btn" onclick="closeModal()">&times;</span>
+        <div class="inv-header">
+            <h2 id="invTitle" style="color:#1890ff; margin:0;">HÓA ĐƠN GIÁ TRỊ GIA TĂNG</h2>
+            <div>Ký hiệu: <b id="invSeries"></b> | Số: <b id="invNumber" style="color:red;"></b> | Ngày: <b id="invDate"></b></div>
+        </div>
+
+        <div class="inv-grid">
+            <div class="inv-box">
+                <h4 style="margin:0 0 5px 0; color:#1890ff;">BÊN BÁN (NCC)</h4>
+                <p><b>Tên:</b> <span id="sellerName"></span></p>
+                <p><b>MST:</b> <b id="sellerTax"></b></p>
+                <p><b>Địa chỉ:</b> <span id="sellerAddr"></span></p>
+            </div>
+            <div class="inv-box">
+                <h4 style="margin:0 0 5px 0; color:#1890ff;">BÊN MUA HÀNG</h4>
+                <p><b>Tên:</b> <span id="buyerName"></span></p>
+                <p><b>MST:</b> <span id="buyerTax"></span></p>
+            </div>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 40px;">STT</th>
+                    <th>Tên hàng hóa, dịch vụ</th>
+                    <th style="width: 60px;">ĐVT</th>
+                    <th style="width: 70px;">SL</th>
+                    <th style="width: 90px;">Đơn giá</th>
+                    <th style="width: 100px;">Thành tiền</th>
+                </tr>
+            </thead>
+            <tbody id="itemsList"></tbody>
+        </table>
+
+        <div class="total-price">TỔNG TIỀN THANH TOÁN: <span id="totalAmount">0</span> VNĐ</div>
+    </div>
+</div>
+
+<script>
+    // DÁN LINK CHIA SẺ THƯ MỤC ONEDRIVE CỦA BẠN VÀO ĐÂY:
+    const ONEDRIVE_SHARE_LINK = "DC:\Users\hungdt\OneDrive - CONG TY CP PHIM THIEN NGAN\WED HOA DON\HOA DON";
+
+    let allInvoices = [];
+
+    // Chuyển link chia sẻ OneDrive thành API URL hợp lệ
+    function getShareToken(url) {
+        let base64Value = btoa(url);
+        return "u!" + base64Value.replace(/=/g, '').replace(/\//g, '_').replace(/\+/g, '-');
+    }
+
+    async function fetchFromOneDrive() {
+        const statusEl = document.getElementById("syncStatus");
+        statusEl.innerText = "⏳ Đang quét danh sách file trên OneDrive...";
+        allInvoices = [];
+
+        try {
+            if (ONEDRIVE_SHARE_LINK.includes("DÁN_LINK")) {
+                statusEl.innerText = "⚠️ Bạn chưa dán link OneDrive vào mã nguồn HTML!";
+                return;
+            }
+
+            const shareToken = getShareToken(ONEDRIVE_SHARE_LINK);
+            const apiUrl = `https://api.onedrive.com/v1.0/shares/${shareToken}/root/children`;
+
+            const response = await fetch(apiUrl);
+            if (!response.ok) throw new Error("Không thể kết nối thư mục OneDrive. Kiểm tra lại quyền chia sẻ link.");
+
+            const data = await response.json();
+            const files = data.value || [];
+
+            let count = 0;
+            for (const file of files) {
+                const downloadUrl = file["@content.downloadUrl"];
+                if (file.name.endsWith(".xml")) {
+                    const xmlText = await (await fetch(downloadUrl)).text();
+                    if (parseAndAddXml(xmlText)) count++;
+                } else if (file.name.endsWith(".zip")) {
+                    try {
+                        const zipBlob = await (await fetch(downloadUrl)).blob();
+                        const zip = await JSZip.loadAsync(zipBlob);
+                        for (const relPath in zip.files) {
+                            if (relPath.endsWith(".xml")) {
+                                const xmlText = await zip.files[relPath].async("text");
+                                if (parseAndAddXml(xmlText)) count++;
+                            }
+                        }
+                    } catch(e) {}
+                }
+            }
+
+            statusEl.innerText = `✅ Đã đồng bộ thành công ${count} hóa đơn từ OneDrive!`;
+            renderTable(allInvoices);
+        } catch (err) {
+            statusEl.innerText = "❌ Lỗi: " + err.message;
+        }
+    }
+
+    function parseAndAddXml(xmlText) {
+        try {
+            const xml = new DOMParser().parseFromString(xmlText, "text/xml");
+            const getTxt = (tag) => { const el = xml.querySelector(tag); return el ? el.textContent.trim() : ""; };
+            
+            const sellerTax = getTxt("NBan > MST");
+            const number = getTxt("SHDon") || getTxt("SOHDON");
+            if (!sellerTax || !number) return false;
+
+            allInvoices.push({
+                date: getTxt("NLap") || getTxt("NGAY"),
+                series: getTxt("KHHDon") || getTxt("KH"),
+                number: number,
+                sellerTax: sellerTax,
+                sellerName: getTxt("NBan > Ten") || getTxt("NBan > DVTen"),
+                totalAmount: getTxt("TgTTien"),
+                rawXml: xmlText
+            });
+            return true;
+        } catch(e) { return false; }
+    }
+
+    function renderTable(list) {
+        const tbody = document.getElementById("invoiceList");
+        tbody.innerHTML = "";
+
+        if (!list.length) {
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center" style="color:#999;">Không có dữ liệu hóa đơn.</td></tr>`;
+            return;
+        }
+
+        const fmt = (v) => v ? Number(v).toLocaleString("vi-VN") : "0";
+
+        list.forEach((inv, i) => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td class="text-center">${i + 1}</td>
+                <td>${inv.date}</td>
+                <td><b>${inv.series} - ${inv.number}</b></td>
+                <td><b style="color:#1890ff;">${inv.sellerTax}</b></td>
+                <td>${inv.sellerName}</td>
+                <td class="text-right"><b>${fmt(inv.totalAmount)}</b></td>
+                <td class="text-center">
+                    <button class="btn-view" onclick='viewInvoice(${JSON.stringify(inv.rawXml)})'>🔍 Xem</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function filterTable() {
+        const kw = document.getElementById("searchInput").value.toLowerCase();
+        const filtered = allInvoices.filter(inv => 
+            inv.sellerTax.toLowerCase().includes(kw) ||
+            inv.sellerName.toLowerCase().includes(kw) ||
+            inv.number.toLowerCase().includes(kw)
+        );
+        renderTable(filtered);
+    }
+
+    function viewInvoice(rawXml) {
+        const xml = new DOMParser().parseFromString(rawXml, "text/xml");
+        const getTxt = (tag) => { const el = xml.querySelector(tag); return el ? el.textContent.trim() : ""; };
+        const fmt = (v) => v ? Number(v).toLocaleString("vi-VN") : "0";
+
+        document.getElementById("invSeries").innerText = getTxt("KHHDon") || getTxt("KH");
+        document.getElementById("invNumber").innerText = getTxt("SHDon") || getTxt("SOHDON");
+        document.getElementById("invDate").innerText = getTxt("NLap") || getTxt("NGAY");
+
+        document.getElementById("sellerName").innerText = getTxt("NBan > Ten") || getTxt("NBan > DVTen");
+        document.getElementById("sellerTax").innerText = getTxt("NBan > MST");
+        document.getElementById("sellerAddr").innerText = getTxt("NBan > DChi");
+
+        document.getElementById("buyerName").innerText = getTxt("NMua > Ten") || getTxt("NMua > DVTen");
+        document.getElementById("buyerTax").innerText = getTxt("NMua > MST");
+
+        const items = xml.querySelectorAll("HHDVu");
+        let html = "", stt = 1;
+        items.forEach(item => {
+            const name = item.querySelector("THDVuu")?.textContent || item.querySelector("TEN")?.textContent || "";
+            if (name) {
+                html += `<tr>
+                    <td class="text-center">${stt++}</td>
+                    <td>${name}</td>
+                    <td class="text-center">${item.querySelector("DVTinh")?.textContent || ""}</td>
+                    <td class="text-right">${fmt(item.querySelector("SLuong")?.textContent)}</td>
+                    <td class="text-right">${fmt(item.querySelector("DGia")?.textContent)}</td>
+                    <td class="text-right">${fmt(item.querySelector("ThTien")?.textContent)}</td>
+                </tr>`;
+            }
+        });
+
+        document.getElementById("itemsList").innerHTML = html;
+        document.getElementById("totalAmount").innerText = fmt(getTxt("TgTTien"));
+        document.getElementById("viewModal").style.display = "block";
+    }
+
+    function closeModal() { document.getElementById("viewModal").style.display = "none"; }
+
+    // Tự động tải dữ liệu khi mở web
+    window.onload = fetchFromOneDrive;
+</script>
+
+</body>
+</html>
