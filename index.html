@@ -1,61 +1,297 @@
+```html
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tra Cứu Hóa Đơn - Galaxy Studio</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <style>
-        * { box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; color: #333; }
-        .container { max-width: 1200px; margin: 0 auto; }
-        .card { background: #fff; padding: 24px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 20px; }
-        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e8e8e8; padding-bottom: 15px; margin-bottom: 20px; }
-        h2 { margin: 0; color: #0050b3; font-size: 22px; }
-        .btn-group { display: flex; gap: 10px; }
-        .btn-reload { background: #52c41a; color: white; border: none; padding: 10px 18px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; }
-        .btn-reload:hover { background: #73d13d; }
-        .btn-export { background: #13c2c2; color: white; border: none; padding: 10px 18px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; }
-        .btn-export:hover { background: #36cfc9; }
-        .status-box { padding: 12px 16px; border-radius: 6px; font-weight: 500; margin-bottom: 20px; font-size: 14px; }
-        .status-info { background: #e6f7ff; border: 1px solid #91d5ff; color: #0958d9; }
-        .status-success { background: #f6ffed; border: 1px solid #b7eb8f; color: #389e0d; }
-        .status-error { background: #fff2f0; border: 1px solid #ffccc7; color: #cf1322; }
-        .search-container { margin-bottom: 20px; }
-        .search-input { width: 100%; padding: 12px 16px; border: 1px solid #d9d9d9; border-radius: 6px; outline: none; font-size: 15px; }
-        table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 6px; overflow: hidden; }
-        th, td { border: 1px solid #f0f0f0; padding: 12px 15px; text-align: left; font-size: 14px; }
-        th { background: #fafafa; font-weight: 600; color: #595959; }
-        tr:hover { background: #fafafa; }
-        .text-center { text-align: center; }
-        .text-right { text-align: right; }
-        .badge-tax { color: #1890ff; font-weight: bold; background: #e6f7ff; padding: 3px 8px; border-radius: 4px; }
-        
-        .btn-action { border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500; margin-right: 4px; }
-        .btn-view { background: #1890ff; color: white; }
-        .btn-view:hover { background: #40a9ff; }
-        .btn-dl { background: #fa8c16; color: white; }
-        .btn-dl:hover { background: #ffa940; }
 
-        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
-        .modal-content { background: #fff; width: 90%; max-width: 850px; max-height: 90vh; border-radius: 8px; padding: 24px; overflow-y: auto; position: relative; }
-        .close-btn { position: absolute; right: 20px; top: 15px; font-size: 24px; cursor: pointer; font-weight: bold; color: #999; }
-        .close-btn:hover { color: #333; }
-        .invoice-header-info { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; background: #fafafa; padding: 15px; border-radius: 6px; margin-bottom: 15px; border: 1px solid #f0f0f0; }
-        .invoice-header-info p { margin: 5px 0; font-size: 14px; }
+    <title>Tra Cứu Hóa Đơn - Galaxy Studio</title>
+
+    <!-- JSZip đọc file ZIP -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+    <!-- SheetJS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: #fff;
+            padding: 24px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #e8e8e8;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+            gap: 20px;
+        }
+
+        h2 {
+            margin: 0;
+            color: #0050b3;
+            font-size: 22px;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            cursor: pointer;
+        }
+
+        .btn-reload {
+            background: #52c41a;
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .btn-reload:hover {
+            background: #73d13d;
+        }
+
+        .btn-export {
+            background: #13c2c2;
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .btn-export:hover {
+            background: #36cfc9;
+        }
+
+        .status-box {
+            padding: 12px 16px;
+            border-radius: 6px;
+            font-weight: 500;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .status-info {
+            background: #e6f7ff;
+            border: 1px solid #91d5ff;
+            color: #0958d9;
+        }
+
+        .status-success {
+            background: #f6ffed;
+            border: 1px solid #b7eb8f;
+            color: #389e0d;
+        }
+
+        .status-error {
+            background: #fff2f0;
+            border: 1px solid #ffccc7;
+            color: #cf1322;
+        }
+
+        .search-container {
+            margin-bottom: 20px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid #d9d9d9;
+            border-radius: 6px;
+            outline: none;
+            font-size: 15px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #fff;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        th,
+        td {
+            border: 1px solid #f0f0f0;
+            padding: 12px 15px;
+            text-align: left;
+            font-size: 14px;
+        }
+
+        th {
+            background: #fafafa;
+            font-weight: 600;
+            color: #595959;
+        }
+
+        tr:hover {
+            background: #fafafa;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .badge-tax {
+            color: #1890ff;
+            font-weight: bold;
+            background: #e6f7ff;
+            padding: 3px 8px;
+            border-radius: 4px;
+        }
+
+        .btn-action {
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            margin-right: 4px;
+        }
+
+        .btn-view {
+            background: #1890ff;
+            color: white;
+        }
+
+        .btn-view:hover {
+            background: #40a9ff;
+        }
+
+        .btn-dl {
+            background: #fa8c16;
+            color: white;
+        }
+
+        .btn-dl:hover {
+            background: #ffa940;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: #fff;
+            width: 90%;
+            max-width: 900px;
+            max-height: 90vh;
+            border-radius: 8px;
+            padding: 24px;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .close-btn {
+            position: absolute;
+            right: 20px;
+            top: 15px;
+            font-size: 24px;
+            cursor: pointer;
+            font-weight: bold;
+            color: #999;
+        }
+
+        .close-btn:hover {
+            color: #333;
+        }
+
+        .invoice-header-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            background: #fafafa;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            border: 1px solid #f0f0f0;
+        }
+
+        .invoice-header-info p {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+
+        @media (max-width: 800px) {
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .invoice-header-info {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
+
 <body>
 
 <div class="container">
+
     <div class="card">
+
         <div class="header">
+
             <h2>🏢 Tra Cứu Hóa Đơn Nội Bộ (Galaxy Studio)</h2>
+
             <div class="btn-group">
-                <button class="btn-export" onclick="exportToExcel()">📊 Xuất Excel Tổng</button>
-                <button class="btn-reload" onclick="loadInvoicesFromGitHub()">🔄 Tải Lại Dữ Liệu</button>
+
+                <button class="btn-export" onclick="exportToExcel()">
+                    📊 Xuất Excel Tổng
+                </button>
+
+                <button class="btn-reload" onclick="loadInvoicesFromGitHub()">
+                    🔄 Tải Lại Dữ Liệu
+                </button>
+
             </div>
+
         </div>
 
         <div id="statusBox" class="status-box status-info">
@@ -63,420 +299,3086 @@
         </div>
 
         <div class="search-container">
-            <input type="text" id="searchInput" class="search-input" placeholder="🔍 Tìm theo Mã số thuế, Tên nhà cung cấp, Số hóa đơn..." oninput="filterTable()">
+
+            <input
+                type="text"
+                id="searchInput"
+                class="search-input"
+                placeholder="🔍 Tìm theo Mã số thuế, Tên nhà cung cấp, Số hóa đơn..."
+                oninput="filterTable()"
+            >
+
         </div>
 
         <table>
+
             <thead>
+
                 <tr>
-                    <th style="width: 50px;" class="text-center">STT</th>
-                    <th style="width: 100px;">Ngày Lập</th>
-                    <th style="width: 140px;">Số Hóa Đơn</th>
-                    <th style="width: 130px;">MST Bán</th>
-                    <th>Đơn Vị Bán</th>
-                    <th style="width: 140px;" class="text-right">Tổng Tiền (VNĐ)</th>
-                    <th style="width: 150px;" class="text-center">Thao Tác</th>
+
+                    <th style="width:50px" class="text-center">
+                        STT
+                    </th>
+
+                    <th style="width:100px">
+                        Ngày Lập
+                    </th>
+
+                    <th style="width:140px">
+                        Số Hóa Đơn
+                    </th>
+
+                    <th style="width:130px">
+                        MST Bán
+                    </th>
+
+                    <th>
+                        Đơn Vị Bán
+                    </th>
+
+                    <th style="width:140px" class="text-right">
+                        Tổng Tiền (VNĐ)
+                    </th>
+
+                    <th style="width:150px" class="text-center">
+                        Thao Tác
+                    </th>
+
                 </tr>
+
             </thead>
+
             <tbody id="invoiceList">
-                <tr><td colspan="7" class="text-center" style="color:#999; padding: 30px;">Đang tải danh sách...</td></tr>
-            </tbody>
-        </table>
-    </div>
-</div>
 
-<div id="viewModal" class="modal">
-    <div class="modal-content">
-        <span class="close-btn" onclick="closeModal()">&times;</span>
-        <h3 style="margin-top:0; color:#0050b3; border-bottom: 2px solid #1890ff; padding-bottom: 10px;">🧾 CHI TIẾT HÓA ĐƠN ĐIỆN TỬ</h3>
-        <div id="modalBody"></div>
-    </div>
-</div>
-
-<script>
-    const pathSegments = window.location.pathname.split('/').filter(Boolean);
-    const repoName = pathSegments.length > 0 ? pathSegments[0] : '';
-    const ownerName = window.location.hostname.split('.')[0];
-    let allInvoices = [];
-
-    window.addEventListener('DOMContentLoaded', () => { loadInvoicesFromGitHub(); });
-
-    async function loadInvoicesFromGitHub() {
-        setStatus("info", "⏳ Đang quét danh sách file trong thư mục DATA...");
-        if (!ownerName || !repoName) {
-            setStatus("error", "⚠️ Hãy chạy trang web trên đường dẫn GitHub Pages.");
-            return;
-        }
-
-        const apiUrl = `https://api.github.com/repos/${ownerName}/${repoName}/contents/DATA`;
-
-        try {
-            const res = await fetch(apiUrl);
-            if (!res.ok) {
-                if (res.status === 404) {
-                    setStatus("error", "⚠️ Chưa thấy thư mục 'DATA'. Bạn hãy tạo thư mục tên 'DATA' trên máy và chép file XML/ZIP vào nhé.");
-                } else {
-                    setStatus("error", `❌ Lỗi lấy dữ liệu (${res.status}).`);
-                }
-                renderTable([]);
-                return;
-            }
-
-            const files = await res.json();
-            const xmlOrZipFiles = files.filter(f => f.name.endsWith('.xml') || f.name.endsWith('.zip'));
-
-            if (xmlOrZipFiles.length === 0) {
-                setStatus("info", "📁 Thư mục DATA hiện chưa có file hóa đơn XML/ZIP nào.");
-                renderTable([]);
-                return;
-            }
-
-            allInvoices = [];
-            await Promise.all(xmlOrZipFiles.map(async (file) => {
-                try {
-                    if (file.name.endsWith('.xml')) {
-                        const contentRes = await fetch(file.download_url);
-                        const text = await contentRes.text();
-                        parseAndAddXml(text, file.name, text);
-                    } else if (file.name.endsWith('.zip')) {
-                        const contentRes = await fetch(file.download_url);
-                        const blob = await contentRes.blob();
-                        const zip = await JSZip.loadAsync(blob);
-                        for (let relativePath in zip.files) {
-                            if (relativePath.endsWith('.xml')) {
-                                const xmlText = await zip.files[relativePath].async('string');
-                                parseAndAddXml(xmlText, file.name, xmlText);
-                            }
-                        }
-                    }
-                } catch (e) {}
-            }));
-
-            allInvoices.sort((a, b) => new Date(b.date) - new Date(a.date));
-            setStatus("success", `✅ Đã tải thành công ${allInvoices.length} hóa đơn từ thư mục DATA!`);
-            renderTable(allInvoices);
-        } catch (err) {
-            setStatus("error", "❌ Lỗi kết nối: " + err.message);
-        }
-    }
-
-    function parseAndAddXml(xmlText, fileName, rawContent) {
-        try {
-            let parser = new DOMParser();
-            let xml = parser.parseFromString(xmlText, "text/xml");
-
-            function getNodes(parent, name) {
-                if (!parent) return [];
-                let res = parent.getElementsByTagName(name);
-                if (res.length === 0) res = parent.getElementsByTagNameNS("*", name);
-                return res;
-            }
-
-            function getTxt(parent, name) {
-                if (!parent) return "";
-                let n = getNodes(parent, name);
-                return (n.length > 0 && n[0] && n[0].textContent) ? n[0].textContent.trim() : "";
-            }
-
-            let ttChung = getNodes(xml, "TTChung")[0] || xml;
-            let nBan = getNodes(xml, "NBan")[0] || xml;
-            let nMua = getNodes(xml, "NMua")[0] || xml;
-
-            const sellerTax = getTxt(nBan, "MST") || getTxt(xml, "MSTNBan") || getTxt(xml, "SellerTaxCode");
-            const number = getTxt(ttChung, "SHDon") || getTxt(xml, "SOHDON") || getTxt(xml, "InvoiceNumber");
-            if (!sellerTax || !number) return;
-
-            const totalAmount = getTxt(xml, "TgTTTBSo") || getTxt(xml, "TgTTien") || getTxt(xml, "TONGTIEN") || getTxt(xml, "TotalAmount") || "0";
-
-            let ngayKy = "";
-            let signNodes = getNodes(xml, "SigningTime");
-            if (signNodes.length > 0) ngayKy = signNodes[0].textContent.trim().substring(0, 10);
-
-            let buyerPerson = getTxt(xml, "HVTNMHang") || getTxt(nMua, "HVTNMHang") || getTxt(nMua, "TNMua") || getTxt(nMua, "Ten");
-
-            const items = [];
-            const itemNodes = getNodes(xml, "HHDVu");
-            itemNodes.forEach(node => {
-                const name = getTxt(node, "THHDVu") || getTxt(node, "TTen");
-                const maSP = getTxt(node, "MHHDVu");
-                const unit = getTxt(node, "DVTinh") || getTxt(node, "DVT");
-                const qty = parseFloat(getTxt(node, "SLuong") || getTxt(node, "SL")) || 0;
-                const price = parseFloat(getTxt(node, "DGia") || getTxt(node, "DG")) || 0;
-                const amount = parseFloat(getTxt(node, "ThTien") || getTxt(node, "TT")) || 0;
-                const vat = getTxt(node, "TSuat");
-                const tchat = getTxt(node, "TChat");
-                if (name || amount > 0) items.push({ name, maSP, unit, qty, price, amount, vat, tchat });
-            });
-
-            allInvoices.push({
-                fileName: fileName,
-                rawContent: rawContent,
-                date: getTxt(ttChung, "NLap") || getTxt(xml, "NGAY") || getTxt(xml, "InvoiceDate") || "---",
-                series: getTxt(ttChung, "KHHDon") || getTxt(xml, "KH") || getTxt(xml, "InvoiceSeries") || "",
-                khms: getTxt(ttChung, "KHMSHDon"),
-                number: number,
-                sellerTax: sellerTax,
-                sellerName: getTxt(nBan, "Ten") || getTxt(nBan, "DVTen") || getTxt(xml, "SellerName") || "Chưa rõ tên",
-                sellerAddr: getTxt(nBan, "DChi") || "",
-                buyerName: getTxt(nMua, "Ten") || getTxt(nMua, "DVTen") || getTxt(xml, "BuyerName") || "",
-                buyerTax: getTxt(nMua, "MST") || "",
-                buyerAddr: getTxt(nMua, "DChi") || "",
-                buyerPerson: buyerPerson,
-                totalBeforeTax: getTxt(xml, "TgTCThue") || "0",
-                vatAmount: getTxt(xml, "TgTThue") || "0",
-                totalAmount: totalAmount,
-                totalText: getTxt(xml, "TgTTTBChu") || "",
-                items: items
-            });
-        } catch(e) {}
-    }
-
-    function renderTable(list) {
-        const tbody = document.getElementById("invoiceList");
-        tbody.innerHTML = "";
-        if (!list.length) {
-            tbody.innerHTML = `<tr><td colspan="7" class="text-center" style="color:#999; padding: 30px;">Chưa có dữ liệu hóa đơn.</td></tr>`;
-            return;
-        }
-        const fmt = (v) => v ? Number(v).toLocaleString("vi-VN") : "0";
-        list.forEach((inv, i) => {
-            tbody.innerHTML += `
                 <tr>
-                    <td class="text-center">${i + 1}</td>
-                    <td>${inv.date}</td>
-                    <td><b>${inv.series ? inv.series + '-' : ''}${inv.number}</b></td>
-                    <td><span class="badge-tax">${inv.sellerTax}</span></td>
-                    <td><b>${inv.sellerName}</b></td>
-                    <td class="text-right"><b style="color: #0050b3;">${fmt(inv.totalAmount)}</b></td>
-                    <td class="text-center">
-                        <button class="btn-action btn-view" onclick="viewInvoice(${i})">👁️ Xem</button>
-                        <button class="btn-action btn-dl" onclick="downloadXml(${i})">📥 Tải</button>
+                    <td colspan="7"
+                        class="text-center"
+                        style="color:#999;padding:30px">
+                        Đang tải danh sách...
                     </td>
                 </tr>
-            `;
-        });
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+
+<!-- MODAL -->
+
+<div id="viewModal" class="modal">
+
+    <div class="modal-content">
+
+        <span class="close-btn" onclick="closeModal()">
+            &times;
+        </span>
+
+        <h3 style="
+            margin-top:0;
+            color:#0050b3;
+            border-bottom:2px solid #1890ff;
+            padding-bottom:10px;
+        ">
+            🧾 CHI TIẾT HÓA ĐƠN ĐIỆN TỬ
+        </h3>
+
+        <div id="modalBody"></div>
+
+    </div>
+
+</div>
+
+
+<script>
+
+/* ============================================================
+   CẤU HÌNH GITHUB
+============================================================ */
+
+const pathSegments =
+    window.location.pathname
+        .split('/')
+        .filter(Boolean);
+
+const repoName =
+    pathSegments.length > 0
+        ? pathSegments[0]
+        : '';
+
+const ownerName =
+    window.location.hostname.split('.')[0];
+
+
+/* ============================================================
+   BIẾN DỮ LIỆU
+============================================================ */
+
+let allInvoices = [];
+
+
+/* ============================================================
+   LOAD KHI MỞ TRANG
+============================================================ */
+
+window.addEventListener(
+    'DOMContentLoaded',
+    () => {
+        loadInvoicesFromGitHub();
     }
+);
 
-    function viewInvoice(index) {
-        const inv = allInvoices[index];
-        const fmt = (v) => v ? Number(v).toLocaleString("vi-VN") : "0";
-        
-        let itemsHtml = "";
-        inv.items.forEach((item, idx) => {
-            itemsHtml += `
-                <tr>
-                    <td class="text-center">${idx + 1}</td>
-                    <td><b>${item.name}</b></td>
-                    <td class="text-center">${item.unit}</td>
-                    <td class="text-center">${fmt(item.qty)}</td>
-                    <td class="text-right">${fmt(item.price)}</td>
-                    <td class="text-right">${fmt(item.amount)}</td>
-                </tr>
-            `;
-        });
 
-        document.getElementById("modalBody").innerHTML = `
-            <div class="invoice-header-info">
-                <div>
-                    <p><b>ĐƠN VỊ BÁN HÀNG:</b> ${inv.sellerName}</p>
-                    <p><b>Mã Số Thuế:</b> <span class="badge-tax">${inv.sellerTax}</span></p>
-                    <p><b>Địa chỉ:</b> ${inv.sellerAddr}</p>
-                </div>
-                <div>
-                    <p><b>Mẫu số - Ký hiệu:</b> ${inv.series}</p>
-                    <p><b>Số Hóa Đơn:</b> <b style="color:#cf1322; font-size:16px;">${inv.number}</b></p>
-                    <p><b>Ngày Lập:</b> ${inv.date}</p>
-                    ${inv.buyerName ? `<p><b>Khách Hàng:</b> ${inv.buyerName}</p>` : ''}
-                </div>
-            </div>
+/* ============================================================
+   LOAD XML / ZIP TỪ GITHUB
+============================================================ */
 
-            <h4 style="margin: 15px 0 8px 0; color:#333;">CHI TIẾT HÀNG HÓA / DỊCH VỤ:</h4>
-            <table>
-                <thead>
-                    <tr>
-                        <th style="width: 40px;" class="text-center">STT</th>
-                        <th>Tên Hàng Hóa, Dịch Vụ</th>
-                        <th style="width: 70px;" class="text-center">ĐVT</th>
-                        <th style="width: 70px;" class="text-center">S.Lượng</th>
-                        <th style="width: 110px;" class="text-right">Đơn Giá</th>
-                        <th style="width: 120px;" class="text-right">Thành Tiền</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${itemsHtml || '<tr><td colspan="6" class="text-center">Không có chi tiết dòng hàng</td></tr>'}
-                </tbody>
-            </table>
+async function loadInvoicesFromGitHub() {
 
-            <div style="text-align: right; margin-top: 15px; background: #e6f7ff; padding: 15px; border-radius: 6px;">
-                <p style="margin: 4px 0;">Cộng tiền hàng: <b>${fmt(inv.totalBeforeTax)} VNĐ</b></p>
-                <p style="margin: 4px 0;">Tiền thuế VAT: <b>${fmt(inv.vatAmount)} VNĐ</b></p>
-                <p style="margin: 8px 0 0 0; color: #0050b3; font-size: 18px;"><b>TỔNG CỘNG TIỀN THANH TOÁN: ${fmt(inv.totalAmount)} VNĐ</b></p>
-                ${inv.totalText ? `<p style="margin: 4px 0 0 0; font-style: italic; color: #555;">(Số tiền viết bằng chữ: ${inv.totalText})</p>` : ''}
-            </div>
-        `;
-        document.getElementById("viewModal").style.display = "flex";
-    }
+    setStatus(
+        "info",
+        "⏳ Đang quét danh sách file trong thư mục DATA..."
+    );
 
-    function closeModal() {
-        document.getElementById("viewModal").style.display = "none";
-    }
+    if (!ownerName || !repoName) {
 
-    function downloadXml(index) {
-        const inv = allInvoices[index];
-        const blob = new Blob([inv.rawContent], { type: "text/xml" });
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = `${inv.sellerTax}_${inv.number}.xml`;
-        a.click();
-    }
-
-    function filterTable() {
-        const kw = document.getElementById("searchInput").value.toLowerCase();
-        const filtered = allInvoices.filter(inv => 
-            inv.sellerTax.toLowerCase().includes(kw) ||
-            inv.sellerName.toLowerCase().includes(kw) ||
-            inv.number.toLowerCase().includes(kw)
+        setStatus(
+            "error",
+            "⚠️ Hãy chạy trang web trên đường dẫn GitHub Pages."
         );
-        renderTable(filtered);
+
+        return;
     }
 
-    function setStatus(type, msg) {
-        const el = document.getElementById("statusBox");
-        el.className = `status-box status-${type}`;
-        el.innerHTML = msg;
-    }
+    const apiUrl =
+        `https://api.github.com/repos/${ownerName}/${repoName}/contents/DATA`;
 
-    // Hàm xuất dữ liệu ra file Excel chuẩn 35 cột thuế
-    function exportToExcel() {
-        if (!allInvoices || allInvoices.length === 0) {
-            alert("Chưa có dữ liệu hóa đơn để xuất Excel!");
+    try {
+
+        const res =
+            await fetch(apiUrl);
+
+        if (!res.ok) {
+
+            if (res.status === 404) {
+
+                setStatus(
+                    "error",
+                    "⚠️ Chưa thấy thư mục DATA. Hãy tạo thư mục DATA trên GitHub và chép file XML/ZIP vào."
+                );
+
+            } else {
+
+                setStatus(
+                    "error",
+                    `❌ Lỗi lấy dữ liệu (${res.status}).`
+                );
+
+            }
+
+            renderTable([]);
+
             return;
         }
 
-        let allRows = [];
-        allInvoices.forEach(inv => {
-            if (inv.items && inv.items.length > 0) {
-                inv.items.forEach(item => {
-                    allRows.push({
-                        "Loại hoá đơn": "Đầu vào",
-                        "Ký hiệu mẫu số": inv.khms,
-                        "Số hóa đơn": inv.number,
-                        "Ký hiệu": inv.series,
-                        "Ngày hóa đơn": inv.date,
-                        "Ngày ký hóa đơn": inv.date,
-                        "Tên đơn vị bán": inv.sellerName,
-                        "Mã số thuế bên bán": inv.sellerTax,
-                        "Địa chỉ bên bán": inv.sellerAddr,
-                        "Tên đơn vị mua": inv.buyerName,
-                        "Mã số thuế mua": inv.buyerTax,
-                        "Địa chỉ mua": inv.buyerAddr,
-                        "Tên người mua": inv.buyerPerson,
-                        "Tính chất": item.tchat || "",
-                        "Tên hàng hóa/dịch vụ": item.name,
-                        "Mã SP": item.maSP || "",
-                        "ĐVT": item.unit,
-                        "Số lượng": item.qty,
-                        "Đơn giá": item.price,
-                        "Chiết khấu": 0,
-                        "Giá trị chưa thuế": item.amount,
-                        "Thuế suất": item.vat,
-                        "Tiền thuế": Number(inv.vatAmount) || 0,
-                        "Tổng giảm trừ ko chịu thuế": "",
-                        "Tổng tiền phí": "",
-                        "Tổng CKTM": "",
-                        "Tổng giảm trừ khác": "",
-                        "Giá trị thanh toán": item.amount + (Number(inv.vatAmount) || 0),
-                        "Trạng thái HD": "Hóa đơn mới",
-                        "Kết quả kiểm tra": "Đã cấp mã hóa đơn",
-                        "Loại liên quan": "",
-                        "Số HĐ liên quan": "",
-                        "Ký hiệu HĐ liên quan": "",
-                        "Ngày HĐ liên quan": "",
-                        "Ghi chú liên quan": ""
-                    });
-                });
-            }
-        });
 
-        let activeRows = [];
-        let replacedRows = [];
-        allRows.forEach(row => {
-            let st = String(row["Trạng thái HD"]).toLowerCase();
-            if (st.includes("thay thế") || st.includes("điều chỉnh")) {
-                replacedRows.push(row);
-            } else {
-                activeRows.push(row);
-            }
-        });
-        if (replacedRows.length === 0 && activeRows.length > 0) {
-            activeRows = allRows;
+        const files =
+            await res.json();
+
+
+        const xmlOrZipFiles =
+            files.filter(
+                f =>
+                    f.name.toLowerCase().endsWith('.xml') ||
+                    f.name.toLowerCase().endsWith('.zip')
+            );
+
+
+        if (xmlOrZipFiles.length === 0) {
+
+            setStatus(
+                "info",
+                "📁 Thư mục DATA hiện chưa có file hóa đơn XML/ZIP nào."
+            );
+
+            renderTable([]);
+
+            return;
         }
 
-        function buildSheetUniversal(dataRows) {
-            let wsData = [
-                ["Từ ngày ... đến ..."],
-                [],
-                []
-            ];
-            wsData[2] = [];
-            wsData[2][0] = "THÔNG TIN HÓA ĐƠN";
-            wsData[2][6] = "THÔNG TIN BÊN BÁN";
-            wsData[2][9] = "THÔNG TIN BÊN MUA";
-            wsData[2][13] = "HÀNG HÓA / DỊCH VỤ";
-            wsData[2][28] = "TRẠNG THÁI";
-            wsData[2][30] = "HÓA ĐƠN LIÊN QUAN";
 
-            let cols = [
-                "Loại hoá đơn", "Ký hiệu mẫu số", "Số hóa đơn", "Ký hiệu", "Ngày hóa đơn", "Ngày ký hóa đơn",
-                "Tên đơn vị bán", "Mã số thuế bên bán", "Địa chỉ bên bán",
-                "Tên đơn vị mua", "Mã số thuế mua", "Địa chỉ mua", "Tên người mua",
-                "Tính chất", "Tên hàng hóa/dịch vụ", "Mã SP", "ĐVT", "Số lượng", "Đơn giá", "Chiết khấu",
-                "Giá trị chưa thuế", "Thuế suất", "Tiền thuế",
-                "Tổng giảm trừ ko chịu thuế", "Tổng tiền phí", "Tổng CKTM", "Tổng giảm trừ khác", "Giá trị thanh toán",
-                "Trạng thái HD", "Kết quả kiểm tra",
-                "Loại liên quan", "Số HĐ liên quan", "Ký hiệu HĐ liên quan", "Ngày HĐ liên quan", "Ghi chú liên quan"
-            ];
-            wsData.push(cols);
+        allInvoices = [];
 
-            dataRows.forEach(item => {
-                let r = new Array(35).fill("");
-                cols.forEach((colName, idx) => { r[idx] = item[colName] !== undefined ? item[colName] : ""; });
-                wsData.push(r);
-            });
 
-            let ws = XLSX.utils.aoa_to_sheet(wsData);
-            let colWidths = new Array(35).fill(12);
-            wsData.forEach(row => {
-                if (Array.isArray(row)) {
-                    row.forEach((cellVal, colIdx) => {
-                        let len = cellVal ? String(cellVal).length : 10;
-                        if (len > colWidths[colIdx]) colWidths[colIdx] = Math.min(len + 3, 45);
-                    });
+        await Promise.all(
+
+            xmlOrZipFiles.map(
+
+                async file => {
+
+                    try {
+
+                        /* ==========================
+                           FILE XML
+                        ========================== */
+
+                        if (
+                            file.name
+                                .toLowerCase()
+                                .endsWith('.xml')
+                        ) {
+
+                            const contentRes =
+                                await fetch(file.download_url);
+
+                            const text =
+                                await contentRes.text();
+
+                            parseAndAddXml(
+                                text,
+                                file.name,
+                                text
+                            );
+
+                        }
+
+
+                        /* ==========================
+                           FILE ZIP
+                        ========================== */
+
+                        else if (
+                            file.name
+                                .toLowerCase()
+                                .endsWith('.zip')
+                        ) {
+
+                            const contentRes =
+                                await fetch(file.download_url);
+
+                            const blob =
+                                await contentRes.blob();
+
+                            const zip =
+                                await JSZip.loadAsync(blob);
+
+
+                            for (
+                                let relativePath in zip.files
+                            ) {
+
+                                if (
+                                    relativePath
+                                        .toLowerCase()
+                                        .endsWith('.xml')
+                                ) {
+
+                                    const xmlText =
+                                        await zip
+                                            .files[relativePath]
+                                            .async('string');
+
+                                    parseAndAddXml(
+                                        xmlText,
+                                        file.name,
+                                        xmlText
+                                    );
+                                }
+                            }
+                        }
+
+                    }
+                    catch (e) {
+
+                        console.error(
+                            "Lỗi đọc file:",
+                            file.name,
+                            e
+                        );
+
+                    }
+
                 }
-            });
-            ws['!cols'] = colWidths.map(w => ({ wch: w }));
-            ws['!merges'] = [
-                { s: { r: 2, c: 0 }, e: { r: 2, c: 5 } },
-                { s: { r: 2, c: 6 }, e: { r: 2, c: 8 } },
-                { s: { r: 2, c: 9 }, e: { r: 2, c: 12 } },
-                { s: { r: 2, c: 13 }, e: { r: 2, c: 27 } },
-                { s: { r: 2, c: 28 }, e: { r: 2, c: 29 } },
-                { s: { r: 2, c: 30 }, e: { r: 2, c: 34 } }
-            ];
-            return ws;
+
+            )
+
+        );
+
+
+        allInvoices.sort(
+            (a,b) =>
+                new Date(b.date) -
+                new Date(a.date)
+        );
+
+
+        setStatus(
+            "success",
+            `✅ Đã tải thành công ${allInvoices.length} hóa đơn từ thư mục DATA!`
+        );
+
+
+        renderTable(allInvoices);
+
+    }
+    catch (err) {
+
+        setStatus(
+            "error",
+            "❌ Lỗi kết nối: " + err.message
+        );
+
+    }
+}
+
+
+/* ============================================================
+   HÀM LẤY TEXT XML
+============================================================ */
+
+function getXmlText(xml, selectors) {
+
+    if (!Array.isArray(selectors)) {
+
+        selectors = [selectors];
+
+    }
+
+    for (const selector of selectors) {
+
+        try {
+
+            const el =
+                xml.querySelector(selector);
+
+            if (el && el.textContent) {
+
+                return el.textContent.trim();
+
+            }
+
+        }
+        catch (e) {}
+
+    }
+
+    return "";
+}
+
+
+/* ============================================================
+   CHUYỂN SỐ
+============================================================ */
+
+function toNumber(value) {
+
+    if (
+        value === null ||
+        value === undefined ||
+        value === ""
+    ) {
+
+        return 0;
+    }
+
+
+    let str =
+        String(value)
+            .trim()
+            .replace(/\s/g, "");
+
+
+    /*
+       XML thường dùng:
+       156000
+       156000.00
+       156.000
+    */
+
+
+    if (
+        str.includes('.') &&
+        str.includes(',')
+    ) {
+
+        str =
+            str
+                .replace(/\./g, '')
+                .replace(',', '.');
+
+    }
+    else if (
+        str.includes(',') &&
+        !str.includes('.')
+    ) {
+
+        /*
+           Nếu có dấu phẩy thập phân
+        */
+
+        str =
+            str.replace(',', '.');
+
+    }
+
+
+    const n =
+        Number(str);
+
+
+    return isNaN(n) ? 0 : n;
+}
+
+
+/* ============================================================
+   ĐỊNH DẠNG NGÀY
+============================================================ */
+
+function normalizeDate(value) {
+
+    if (!value) return "";
+
+
+    const s =
+        String(value).trim();
+
+
+    /*
+       2026-08-25
+       2026-08-25T10:20:00
+    */
+
+    const m =
+        s.match(
+            /^(\d{4})-(\d{2})-(\d{2})/
+        );
+
+
+    if (m) {
+
+        return `${m[3]}/${m[2]}/${m[1]}`;
+
+    }
+
+
+    /*
+       Nếu đã là dd/mm/yyyy
+    */
+
+    return s;
+}
+
+
+/* ============================================================
+   TÁCH NGÀY ĐỂ SORT
+============================================================ */
+
+function dateForSort(value) {
+
+    if (!value) return "";
+
+    const s =
+        String(value).trim();
+
+
+    const m =
+        s.match(
+            /^(\d{4})-(\d{2})-(\d{2})/
+        );
+
+
+    if (m) {
+
+        return `${m[1]}-${m[2]}-${m[3]}`;
+
+    }
+
+
+    return s;
+}
+
+
+/* ============================================================
+   XÁC ĐỊNH LOẠI HÓA ĐƠN
+============================================================ */
+
+function detectInvoiceType(xml) {
+
+    const value =
+        getXmlText(
+            xml,
+            [
+                "LoaiHDon",
+                "LoaiHD",
+                "LoaiHoaDon",
+                "InvoiceType",
+                "HinhThucHoaDon"
+            ]
+        );
+
+
+    const lower =
+        value.toLowerCase();
+
+
+    if (
+        lower.includes("điều chỉnh") ||
+        lower.includes("dieu chinh")
+    ) {
+
+        return "HÓA ĐƠN ĐIỀU CHỈNH";
+    }
+
+
+    if (
+        lower.includes("thay thế") ||
+        lower.includes("thay the")
+    ) {
+
+        return "HÓA ĐƠN THAY THẾ";
+    }
+
+
+    /*
+       Nếu XML không có loại:
+       mặc định hóa đơn GTGT
+    */
+
+    return "HÓA ĐƠN GIÁ TRỊ GIA TĂNG";
+}
+
+
+/* ============================================================
+   LẤY THÔNG TIN LIÊN QUAN
+============================================================ */
+
+function getRelatedInvoice(xml) {
+
+    const number =
+        getXmlText(
+            xml,
+            [
+                "SHDCLQuan",
+                "SHDThayThe",
+                "SHDThayThe",
+                "SoHDLienQuan",
+                "SoHoaDonLienQuan",
+                "InvoiceNumberRelated",
+                "SoHDonLienQuan"
+            ]
+        );
+
+
+    const series =
+        getXmlText(
+            xml,
+            [
+                "KHMSHDCLQuan",
+                "KHHDCLQuan",
+                "KHHDonLienQuan",
+                "KyHieuHDLienQuan",
+                "InvoiceSeriesRelated"
+            ]
+        );
+
+
+    const date =
+        getXmlText(
+            xml,
+            [
+                "NLapHDCLQuan",
+                "NgayHDonLienQuan",
+                "NgayHoaDonLienQuan",
+                "InvoiceDateRelated"
+            ]
+        );
+
+
+    const type =
+        getXmlText(
+            xml,
+            [
+                "LoaiHDCLQuan",
+                "LoaiLienQuan",
+                "LoaiHoaDonLienQuan",
+                "RelatedType"
+            ]
+        );
+
+
+    const note =
+        getXmlText(
+            xml,
+            [
+                "GChuLienQuan",
+                "GhiChuLienQuan",
+                "RelatedNote"
+            ]
+        );
+
+
+    return {
+
+        type: type,
+
+        number: number,
+
+        series: series,
+
+        date: normalizeDate(date),
+
+        note: note
+
+    };
+}
+
+
+/* ============================================================
+   PARSE XML
+============================================================ */
+
+function parseAndAddXml(
+    xmlText,
+    fileName,
+    rawContent
+) {
+
+    try {
+
+        const xml =
+            new DOMParser()
+                .parseFromString(
+                    xmlText,
+                    "text/xml"
+                );
+
+
+        /* ==========================
+           THÔNG TIN HÓA ĐƠN
+        ========================== */
+
+        const dateRaw =
+            getXmlText(
+                xml,
+                [
+                    "NLap",
+                    "NGAY",
+                    "InvoiceDate"
+                ]
+            );
+
+
+        const date =
+            normalizeDate(dateRaw);
+
+
+        const series =
+            getXmlText(
+                xml,
+                [
+                    "KHHDon",
+                    "KH",
+                    "InvoiceSeries"
+                ]
+            );
+
+
+        const number =
+            getXmlText(
+                xml,
+                [
+                    "SHDon",
+                    "SOHDON",
+                    "InvoiceNumber"
+                ]
+            );
+
+
+        if (!number) {
+
+            return;
         }
 
-        let ws1 = buildSheetUniversal(activeRows);
-        let ws2 = buildSheetUniversal(replacedRows.length > 0 ? replacedRows : []);
 
-        let wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws1, "Báo cáo hóa đơn");
-        XLSX.utils.book_append_sheet(wb, ws2, "Hóa đơn thay thế-điều chỉnh");
+        /* ==========================
+           MST BÁN
+        ========================== */
 
-        const today = new Date().toISOString().split('T')[0];
-        XLSX.writeFile(wb, `Hoa_don_audit_all_in_one_${today}.xlsx`);
+        const sellerTax =
+            getXmlText(
+                xml,
+                [
+                    "NBan > MST",
+                    "MSTNBan",
+                    "SellerTaxCode"
+                ]
+            );
+
+
+        /* ==========================
+           BÊN BÁN
+        ========================== */
+
+        const sellerName =
+            getXmlText(
+                xml,
+                [
+                    "NBan > Ten",
+                    "NBan > DVTen",
+                    "Ten",
+                    "SellerName"
+                ]
+            ) ||
+            "Chưa rõ tên";
+
+
+        const sellerAddr =
+            getXmlText(
+                xml,
+                [
+                    "NBan > DChi",
+                    "SellerAddress"
+                ]
+            );
+
+
+        /* ==========================
+           BÊN MUA
+        ========================== */
+
+        const buyerName =
+            getXmlText(
+                xml,
+                [
+                    "NMua > Ten",
+                    "NMua > DVTen",
+                    "BuyerName"
+                ]
+            );
+
+
+        const buyerTax =
+            getXmlText(
+                xml,
+                [
+                    "NMua > MST",
+                    "MSTNMua",
+                    "BuyerTaxCode"
+                ]
+            );
+
+
+        const buyerAddr =
+            getXmlText(
+                xml,
+                [
+                    "NMua > DChi",
+                    "BuyerAddress"
+                ]
+            );
+
+
+        const buyerPerson =
+            getXmlText(
+                xml,
+                [
+                    "NMua > HTNguoiMua",
+                    "NMua > NguoiMua",
+                    "NguoiMua",
+                    "BuyerNamePerson"
+                ]
+            );
+
+
+        /* ==========================
+           TỔNG TIỀN
+        ========================== */
+
+        const totalBeforeTax =
+            toNumber(
+                getXmlText(
+                    xml,
+                    [
+                        "TgTCThue",
+                        "TgTien",
+                        "TotalBeforeTax"
+                    ]
+                )
+            );
+
+
+        const vatAmount =
+            toNumber(
+                getXmlText(
+                    xml,
+                    [
+                        "TgTThue",
+                        "TgThue",
+                        "VATAmount"
+                    ]
+                )
+            );
+
+
+        const totalAmount =
+            toNumber(
+                getXmlText(
+                    xml,
+                    [
+                        "TgTTTBSo",
+                        "TgTTien",
+                        "TONGTIEN",
+                        "TotalAmount"
+                    ]
+                )
+            );
+
+
+        const totalText =
+            getXmlText(
+                xml,
+                [
+                    "TgTTTBChu",
+                    "TotalAmountInWords"
+                ]
+            );
+
+
+        /* ==========================
+           TRẠNG THÁI
+        ========================== */
+
+        const status =
+            getXmlText(
+                xml,
+                [
+                    "TrangThai",
+                    "TrangThaiHD",
+                    "InvoiceStatus"
+                ]
+            ) ||
+            "Hóa đơn mới";
+
+
+        const checkResult =
+            getXmlText(
+                xml,
+                [
+                    "KetQuaKiemTra",
+                    "KQKTra",
+                    "CheckResult"
+                ]
+            ) ||
+            "Đã cấp mã hóa đơn";
+
+
+        /* ==========================
+           LOẠI HÓA ĐƠN
+        ========================== */
+
+        const invoiceType =
+            detectInvoiceType(xml);
+
+
+        /* ==========================
+           LIÊN QUAN
+        ========================== */
+
+        const related =
+            getRelatedInvoice(xml);
+
+
+        /* ==========================
+           ITEM
+        ========================== */
+
+        const items = [];
+
+
+        const itemNodes =
+            xml.querySelectorAll(
+                "HHDVu, HHDang, HHDVu"
+            );
+
+
+        itemNodes.forEach(
+            node => {
+
+                const name =
+                    node.querySelector(
+                        "THHDVu, TTen, Ten"
+                    )?.textContent
+                    ?.trim() || "";
+
+
+                const code =
+                    node.querySelector(
+                        "MHHDVu, MHHDVu, MaSP, MaHang"
+                    )?.textContent
+                    ?.trim() || "";
+
+
+                const unit =
+                    node.querySelector(
+                        "DVTinh, DVT"
+                    )?.textContent
+                    ?.trim() || "";
+
+
+                const qty =
+                    toNumber(
+                        node.querySelector(
+                            "SLuong, SL"
+                        )?.textContent
+                    );
+
+
+                const price =
+                    toNumber(
+                        node.querySelector(
+                            "DGia, DG"
+                        )?.textContent
+                    );
+
+
+                const amount =
+                    toNumber(
+                        node.querySelector(
+                            "ThTien, TT"
+                        )?.textContent
+                    );
+
+
+                const discount =
+                    toNumber(
+                        node.querySelector(
+                            "STCKhau, TCKH"
+                        )?.textContent
+                    );
+
+
+                const vat =
+                    node.querySelector(
+                        "TSuat"
+                    )?.textContent
+                    ?.trim() || "";
+
+
+                if (name) {
+
+                    items.push({
+
+                        name,
+
+                        code,
+
+                        unit,
+
+                        qty,
+
+                        price,
+
+                        amount,
+
+                        discount,
+
+                        vat
+
+                    });
+
+                }
+
+            }
+        );
+
+
+        /* ==========================
+           THÊM VÀO DATA
+        ========================== */
+
+        allInvoices.push({
+
+            fileName,
+
+            rawContent,
+
+            date,
+
+            dateRaw,
+
+            series,
+
+            number,
+
+            sellerTax,
+
+            sellerName,
+
+            sellerAddr,
+
+            buyerName,
+
+            buyerTax,
+
+            buyerAddr,
+
+            buyerPerson,
+
+            totalBeforeTax,
+
+            vatAmount,
+
+            totalAmount,
+
+            totalText,
+
+            status,
+
+            checkResult,
+
+            invoiceType,
+
+            related,
+
+            items
+
+        });
+
     }
+    catch (e) {
+
+        console.error(
+            "Không đọc được XML:",
+            fileName,
+            e
+        );
+
+    }
+}
+
+
+/* ============================================================
+   HIỂN THỊ TABLE
+============================================================ */
+
+function renderTable(list) {
+
+    const tbody =
+        document.getElementById(
+            "invoiceList"
+        );
+
+
+    tbody.innerHTML = "";
+
+
+    if (!list.length) {
+
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7"
+                    class="text-center"
+                    style="color:#999;padding:30px">
+                    Chưa có dữ liệu hóa đơn.
+                </td>
+            </tr>
+        `;
+
+        return;
+    }
+
+
+    const fmt =
+        v =>
+            Number(v || 0)
+                .toLocaleString("vi-VN");
+
+
+    list.forEach(
+        (inv, i) => {
+
+            tbody.innerHTML += `
+
+                <tr>
+
+                    <td class="text-center">
+                        ${i + 1}
+                    </td>
+
+                    <td>
+                        ${inv.date}
+                    </td>
+
+                    <td>
+                        <b>
+                            ${
+                                inv.series
+                                    ? inv.series + "-"
+                                    : ""
+                            }${inv.number}
+                        </b>
+                    </td>
+
+                    <td>
+                        <span class="badge-tax">
+                            ${inv.sellerTax}
+                        </span>
+                    </td>
+
+                    <td>
+                        <b>
+                            ${inv.sellerName}
+                        </b>
+                    </td>
+
+                    <td class="text-right">
+
+                        <b style="color:#0050b3">
+                            ${fmt(inv.totalAmount)}
+                        </b>
+
+                    </td>
+
+                    <td class="text-center">
+
+                        <button
+                            class="btn-action btn-view"
+                            onclick="viewInvoice(${i})">
+                            👁️ Xem
+                        </button>
+
+                        <button
+                            class="btn-action btn-dl"
+                            onclick="downloadXml(${i})">
+                            📥 Tải
+                        </button>
+
+                    </td>
+
+                </tr>
+
+            `;
+
+        }
+    );
+}
+
+
+/* ============================================================
+   XEM HÓA ĐƠN
+============================================================ */
+
+function viewInvoice(index) {
+
+    const inv =
+        allInvoices[index];
+
+
+    const fmt =
+        v =>
+            Number(v || 0)
+                .toLocaleString("vi-VN");
+
+
+    let itemsHtml = "";
+
+
+    inv.items.forEach(
+        (item, idx) => {
+
+            itemsHtml += `
+
+                <tr>
+
+                    <td class="text-center">
+                        ${idx + 1}
+                    </td>
+
+                    <td>
+                        <b>${item.name}</b>
+                    </td>
+
+                    <td class="text-center">
+                        ${item.unit}
+                    </td>
+
+                    <td class="text-center">
+                        ${fmt(item.qty)}
+                    </td>
+
+                    <td class="text-right">
+                        ${fmt(item.price)}
+                    </td>
+
+                    <td class="text-right">
+                        ${fmt(item.amount)}
+                    </td>
+
+                </tr>
+
+            `;
+
+        }
+    );
+
+
+    document.getElementById(
+        "modalBody"
+    ).innerHTML = `
+
+        <div class="invoice-header-info">
+
+            <div>
+
+                <p>
+                    <b>ĐƠN VỊ BÁN HÀNG:</b>
+                    ${inv.sellerName}
+                </p>
+
+                <p>
+                    <b>Mã Số Thuế:</b>
+
+                    <span class="badge-tax">
+                        ${inv.sellerTax}
+                    </span>
+
+                </p>
+
+                <p>
+                    <b>Địa chỉ:</b>
+                    ${inv.sellerAddr}
+                </p>
+
+            </div>
+
+
+            <div>
+
+                <p>
+                    <b>Mẫu số - Ký hiệu:</b>
+                    ${inv.series}
+                </p>
+
+                <p>
+                    <b>Số Hóa Đơn:</b>
+
+                    <b style="
+                        color:#cf1322;
+                        font-size:16px;
+                    ">
+                        ${inv.number}
+                    </b>
+
+                </p>
+
+                <p>
+                    <b>Ngày Lập:</b>
+                    ${inv.date}
+                </p>
+
+                ${
+                    inv.buyerName
+                    ?
+                    `<p>
+                        <b>Khách Hàng:</b>
+                        ${inv.buyerName}
+                    </p>`
+                    :
+                    ""
+                }
+
+            </div>
+
+        </div>
+
+
+        <h4 style="
+            margin:15px 0 8px 0;
+            color:#333;
+        ">
+            CHI TIẾT HÀNG HÓA / DỊCH VỤ:
+        </h4>
+
+
+        <table>
+
+            <thead>
+
+                <tr>
+
+                    <th
+                        style="width:40px"
+                        class="text-center">
+                        STT
+                    </th>
+
+                    <th>
+                        Tên Hàng Hóa, Dịch Vụ
+                    </th>
+
+                    <th
+                        style="width:70px"
+                        class="text-center">
+                        ĐVT
+                    </th>
+
+                    <th
+                        style="width:70px"
+                        class="text-center">
+                        S.Lượng
+                    </th>
+
+                    <th
+                        style="width:110px"
+                        class="text-right">
+                        Đơn Giá
+                    </th>
+
+                    <th
+                        style="width:120px"
+                        class="text-right">
+                        Thành Tiền
+                    </th>
+
+                </tr>
+
+            </thead>
+
+            <tbody>
+
+                ${
+                    itemsHtml ||
+                    `
+                    <tr>
+                        <td
+                            colspan="6"
+                            class="text-center">
+                            Không có chi tiết dòng hàng
+                        </td>
+                    </tr>
+                    `
+                }
+
+            </tbody>
+
+        </table>
+
+
+        <div style="
+            text-align:right;
+            margin-top:15px;
+            background:#e6f7ff;
+            padding:15px;
+            border-radius:6px;
+        ">
+
+            <p style="margin:4px 0">
+                Cộng tiền hàng:
+                <b>
+                    ${fmt(inv.totalBeforeTax)} VNĐ
+                </b>
+            </p>
+
+            <p style="margin:4px 0">
+                Tiền thuế VAT:
+                <b>
+                    ${fmt(inv.vatAmount)} VNĐ
+                </b>
+            </p>
+
+            <p style="
+                margin:8px 0 0 0;
+                color:#0050b3;
+                font-size:18px;
+            ">
+
+                <b>
+                    TỔNG CỘNG TIỀN THANH TOÁN:
+                    ${fmt(inv.totalAmount)}
+                    VNĐ
+                </b>
+
+            </p>
+
+            ${
+                inv.totalText
+                ?
+                `
+                <p style="
+                    margin:4px 0 0 0;
+                    font-style:italic;
+                    color:#555;
+                ">
+                    (Số tiền viết bằng chữ:
+                    ${inv.totalText})
+                </p>
+                `
+                :
+                ""
+            }
+
+        </div>
+
+    `;
+
+
+    document.getElementById(
+        "viewModal"
+    ).style.display = "flex";
+}
+
+
+/* ============================================================
+   ĐÓNG MODAL
+============================================================ */
+
+function closeModal() {
+
+    document.getElementById(
+        "viewModal"
+    ).style.display = "none";
+}
+
+
+/* ============================================================
+   DOWNLOAD XML
+============================================================ */
+
+function downloadXml(index) {
+
+    const inv =
+        allInvoices[index];
+
+
+    const blob =
+        new Blob(
+            [inv.rawContent],
+            {
+                type: "text/xml;charset=utf-8"
+            }
+        );
+
+
+    const a =
+        document.createElement("a");
+
+
+    a.href =
+        URL.createObjectURL(blob);
+
+
+    a.download =
+        `${inv.sellerTax}_${inv.number}.xml`;
+
+
+    document.body.appendChild(a);
+
+    a.click();
+
+    document.body.removeChild(a);
+
+
+    setTimeout(
+        () => URL.revokeObjectURL(a.href),
+        1000
+    );
+}
+
+
+/* ============================================================
+   SEARCH
+============================================================ */
+
+function filterTable() {
+
+    const kw =
+        document.getElementById(
+            "searchInput"
+        )
+        .value
+        .toLowerCase()
+        .trim();
+
+
+    const filtered =
+        allInvoices.filter(
+            inv =>
+
+                String(inv.sellerTax)
+                    .toLowerCase()
+                    .includes(kw)
+
+                ||
+
+                String(inv.sellerName)
+                    .toLowerCase()
+                    .includes(kw)
+
+                ||
+
+                String(inv.number)
+                    .toLowerCase()
+                    .includes(kw)
+
+                ||
+
+                String(inv.buyerName)
+                    .toLowerCase()
+                    .includes(kw)
+
+                ||
+
+                String(inv.series)
+                    .toLowerCase()
+                    .includes(kw)
+        );
+
+
+    renderTable(filtered);
+}
+
+
+/* ============================================================
+   STATUS
+============================================================ */
+
+function setStatus(type, msg) {
+
+    const el =
+        document.getElementById(
+            "statusBox"
+        );
+
+
+    el.className =
+        `status-box status-${type}`;
+
+
+    el.innerHTML =
+        msg;
+}
+
+
+/* ============================================================
+   ============================================================
+   XUẤT EXCEL THEO FORM MẪU
+   ============================================================
+============================================================ */
+
+
+/*
+    35 CỘT THEO FILE MẪU
+
+    1  Loại hoá đơn
+    2  Ký hiệu mẫu số
+    3  Số hóa đơn
+    4  Ký hiệu
+    5  Ngày hóa đơn
+    6  Ngày ký hóa đơn
+    7  Tên đơn vị bán
+    8  Mã số thuế bên bán
+    9  Địa chỉ bên bán
+    10 Tên đơn vị mua
+    11 Mã số thuế mua
+    12 Địa chỉ mua
+    13 Tên người mua
+    14 Tính chất
+    15 Tên hàng hóa/dịch vụ
+    16 Mã SP
+    17 ĐVT
+    18 Số lượng
+    19 Đơn giá
+    20 Chiết khấu
+    21 Giá trị chưa thuế
+    22 Thuế suất
+    23 Tiền thuế
+    24 Tổng giảm trừ ko chịu thuế
+    25 Tổng tiền phí
+    26 Tổng CKTM
+    27 Tổng giảm trừ khác
+    28 Giá trị thanh toán
+    29 Trạng thái HD
+    30 Kết quả kiểm tra
+    31 Loại liên quan
+    32 Số HĐ liên quan
+    33 Ký hiệu HĐ liên quan
+    34 Ngày HĐ liên quan
+    35 Ghi chú liên quan
+*/
+
+
+const EXCEL_HEADERS = [
+
+    "Loại hoá đơn",
+
+    "Ký hiệu mẫu số",
+
+    "Số hóa đơn",
+
+    "Ký hiệu",
+
+    "Ngày hóa đơn",
+
+    "Ngày ký hóa đơn",
+
+    "Tên đơn vị bán",
+
+    "Mã số thuế bên bán",
+
+    "Địa chỉ bên bán",
+
+    "Tên đơn vị mua",
+
+    "Mã số thuế mua",
+
+    "Địa chỉ mua",
+
+    "Tên người mua",
+
+    "Tính chất",
+
+    "Tên hàng hóa/dịch vụ",
+
+    "Mã SP",
+
+    "ĐVT",
+
+    "Số lượng",
+
+    "Đơn giá",
+
+    "Chiết khấu",
+
+    "Giá trị chưa thuế",
+
+    "Thuế suất",
+
+    "Tiền thuế",
+
+    "Tổng giảm trừ ko chịu thuế",
+
+    "Tổng tiền phí",
+
+    "Tổng CKTM",
+
+    "Tổng giảm trừ khác",
+
+    "Giá trị thanh toán",
+
+    "Trạng thái HD",
+
+    "Kết quả kiểm tra",
+
+    "Loại liên quan",
+
+    "Số HĐ liên quan",
+
+    "Ký hiệu HĐ liên quan",
+
+    "Ngày HĐ liên quan",
+
+    "Ghi chú liên quan"
+
+];
+
+
+/* ============================================================
+   TẠO 1 DÒNG EXCEL
+============================================================ */
+
+function makeExcelRow(inv, item) {
+
+    const related =
+        inv.related || {};
+
+
+    return [
+
+        /*
+          1
+        */
+        inv.invoiceType || "",
+
+
+        /*
+          2
+          Ký hiệu mẫu số
+        */
+        getInvoiceTemplateNumber(inv),
+
+
+        /*
+          3
+          Số hóa đơn
+          GIỮ DẠNG STRING
+          để không mất số 0 đầu
+        */
+        String(inv.number || ""),
+
+
+        /*
+          4
+        */
+        String(inv.series || ""),
+
+
+        /*
+          5
+        */
+        inv.date || "",
+
+
+        /*
+          6
+        */
+        inv.date || "",
+
+
+        /*
+          7
+        */
+        inv.sellerName || "",
+
+
+        /*
+          8
+        */
+        String(inv.sellerTax || ""),
+
+
+        /*
+          9
+        */
+        inv.sellerAddr || "",
+
+
+        /*
+          10
+        */
+        inv.buyerName || "",
+
+
+        /*
+          11
+        */
+        String(inv.buyerTax || ""),
+
+
+        /*
+          12
+        */
+        inv.buyerAddr || "",
+
+
+        /*
+          13
+        */
+        inv.buyerPerson || "",
+
+
+        /*
+          14
+          Tính chất
+        */
+        "1",
+
+
+        /*
+          15
+        */
+        item
+            ? item.name
+            : "",
+
+
+        /*
+          16
+        */
+        item
+            ? item.code
+            : "",
+
+
+        /*
+          17
+        */
+        item
+            ? item.unit
+            : "",
+
+
+        /*
+          18
+        */
+        item
+            ? item.qty
+            : 0,
+
+
+        /*
+          19
+        */
+        item
+            ? item.price
+            : 0,
+
+
+        /*
+          20
+        */
+        item
+            ? item.discount
+            : 0,
+
+
+        /*
+          21
+        */
+        item
+            ? item.amount
+            : inv.totalBeforeTax,
+
+
+        /*
+          22
+        */
+        item
+            ? item.vat
+            : "",
+
+
+        /*
+          23
+        */
+        inv.vatAmount || 0,
+
+
+        /*
+          24
+        */
+        0,
+
+
+        /*
+          25
+          Tổng tiền phí
+        */
+        0,
+
+
+        /*
+          26
+          Tổng CKTM
+        */
+        item
+            ? item.discount
+            : 0,
+
+
+        /*
+          27
+        */
+        0,
+
+
+        /*
+          28
+        */
+        inv.totalAmount || 0,
+
+
+        /*
+          29
+        */
+        inv.status || "Hóa đơn mới",
+
+
+        /*
+          30
+        */
+        inv.checkResult ||
+            "Đã cấp mã hóa đơn",
+
+
+        /*
+          31
+        */
+        related.type || "",
+
+
+        /*
+          32
+        */
+        String(
+            related.number || ""
+        ),
+
+
+        /*
+          33
+        */
+        related.series || "",
+
+
+        /*
+          34
+        */
+        related.date || "",
+
+
+        /*
+          35
+        */
+        related.note || ""
+
+    ];
+}
+
+
+/* ============================================================
+   LẤY KÝ HIỆU MẪU SỐ
+============================================================ */
+
+function getInvoiceTemplateNumber(inv) {
+
+    /*
+       Một số XML có mẫu số riêng.
+       Hiện tại dữ liệu parse chưa lưu trường này,
+       nên thử đọc lại trực tiếp từ raw XML.
+    */
+
+    try {
+
+        const xml =
+            new DOMParser()
+                .parseFromString(
+                    inv.rawContent,
+                    "text/xml"
+                );
+
+
+        const value =
+            getXmlText(
+                xml,
+                [
+                    "KHMSHDon",
+                    "KHMSHD",
+                    "KyHieuMauSo",
+                    "MauSo",
+                    "InvoiceTemplateNumber"
+                ]
+            );
+
+
+        if (value) {
+
+            return String(value);
+
+        }
+
+    }
+    catch (e) {}
+
+
+    /*
+       Nếu không tìm thấy,
+       dùng 1 giống file mẫu.
+    */
+
+    return "1";
+}
+
+
+/* ============================================================
+   TẠO SHEET
+============================================================ */
+
+function createInvoiceSheet(
+    invoices,
+    fromDateText,
+    toDateText
+) {
+
+    const data = [];
+
+
+    /*
+       Hàng 1
+    */
+
+    data.push([
+        `Từ ngày ${fromDateText || "..."} đến ${toDateText || "..."}`
+    ]);
+
+
+    /*
+       Hàng 2
+    */
+
+    data.push([]);
+
+
+    /*
+       Hàng 3
+       GROUP HEADER
+    */
+
+    data.push([
+
+        "THÔNG TIN HÓA ĐƠN",
+        null,
+        null,
+        null,
+        null,
+        null,
+
+        "THÔNG TIN BÊN BÁN",
+        null,
+        null,
+
+        "THÔNG TIN BÊN MUA",
+        null,
+        null,
+        null,
+
+        "HÀNG HÓA / DỊCH VỤ",
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+
+        "TRẠNG THÁI",
+        null,
+
+        "HÓA ĐƠN LIÊN QUAN",
+        null,
+        null,
+        null,
+        null
+
+    ]);
+
+
+    /*
+       Hàng 4
+    */
+
+    data.push(EXCEL_HEADERS);
+
+
+    /*
+       Hàng dữ liệu
+    */
+
+    invoices.forEach(
+        inv => {
+
+            /*
+               Nếu có nhiều item:
+               mỗi item = 1 dòng
+            */
+
+            if (
+                inv.items &&
+                inv.items.length > 0
+            ) {
+
+                inv.items.forEach(
+                    item => {
+
+                        data.push(
+                            makeExcelRow(
+                                inv,
+                                item
+                            )
+                        );
+
+                    }
+                );
+
+            }
+
+            /*
+               Không có item
+            */
+
+            else {
+
+                data.push(
+                    makeExcelRow(
+                        inv,
+                        null
+                    )
+                );
+
+            }
+
+        }
+    );
+
+
+    const ws =
+        XLSX.utils.aoa_to_sheet(
+            data
+        );
+
+
+    /* ========================================================
+       MERGE GROUP HEADER
+    ======================================================== */
+
+    ws["!merges"] = [
+
+        /*
+           THÔNG TIN HÓA ĐƠN
+           A:F
+        */
+        {
+            s: { r: 2, c: 0 },
+            e: { r: 2, c: 5 }
+        },
+
+
+        /*
+           BÊN BÁN
+           G:I
+        */
+        {
+            s: { r: 2, c: 6 },
+            e: { r: 2, c: 8 }
+        },
+
+
+        /*
+           BÊN MUA
+           J:M
+        */
+        {
+            s: { r: 2, c: 9 },
+            e: { r: 2, c: 12 }
+        },
+
+
+        /*
+           HÀNG HÓA
+           N:AB
+        */
+        {
+            s: { r: 2, c: 13 },
+            e: { r: 2, c: 27 }
+        },
+
+
+        /*
+           TRẠNG THÁI
+           AC:AD
+        */
+        {
+            s: { r: 2, c: 28 },
+            e: { r: 2, c: 29 }
+        },
+
+
+        /*
+           LIÊN QUAN
+           AE:AI
+        */
+        {
+            s: { r: 2, c: 30 },
+            e: { r: 2, c: 34 }
+        }
+
+    ];
+
+
+    /* ========================================================
+       ĐỘ RỘNG CỘT
+    ======================================================== */
+
+    ws["!cols"] = [
+
+        { wch: 25 },
+        { wch: 14 },
+        { wch: 14 },
+        { wch: 13 },
+        { wch: 13 },
+        { wch: 16 },
+
+        { wch: 35 },
+        { wch: 18 },
+        { wch: 45 },
+
+        { wch: 35 },
+        { wch: 18 },
+        { wch: 40 },
+        { wch: 22 },
+
+        { wch: 12 },
+        { wch: 45 },
+        { wch: 16 },
+        { wch: 12 },
+        { wch: 12 },
+        { wch: 16 },
+        { wch: 14 },
+        { wch: 18 },
+        { wch: 12 },
+        { wch: 16 },
+        { wch: 20 },
+        { wch: 16 },
+        { wch: 16 },
+        { wch: 18 },
+        { wch: 18 },
+
+        { wch: 20 },
+        { wch: 22 },
+
+        { wch: 18 },
+        { wch: 18 },
+        { wch: 18 },
+        { wch: 18 },
+        { wch: 25 }
+
+    ];
+
+
+    /* ========================================================
+       FREEZE HEADER
+    ======================================================== */
+
+    ws["!freeze"] = {
+        xSplit: 0,
+        ySplit: 4
+    };
+
+
+    /* ========================================================
+       AUTOFILTER
+    ======================================================== */
+
+    ws["!autofilter"] = {
+        ref:
+            `A4:AI${Math.max(4, data.length)}`
+    };
+
+
+    /*
+       PAGE SETUP
+    */
+
+    ws["!pageSetup"] = {
+
+        orientation: "landscape",
+
+        fitToWidth: 1,
+
+        fitToHeight: 0
+
+    };
+
+
+    return ws;
+}
+
+
+/* ============================================================
+   STYLE CELL
+============================================================ */
+
+function styleCell(
+    ws,
+    address,
+    style
+) {
+
+    if (!ws[address]) {
+
+        ws[address] = {
+            v: "",
+            t: "s"
+        };
+
+    }
+
+
+    ws[address].s = style;
+}
+
+
+/* ============================================================
+   FORMAT SHEET
+============================================================ */
+
+function formatInvoiceSheet(ws) {
+
+    /*
+       SheetJS community bản thường không giữ
+       đầy đủ style như ExcelJS.
+
+       Tuy nhiên vẫn đặt style nếu phiên bản
+       đang sử dụng hỗ trợ.
+    */
+
+
+    const headerGroupStyle = {
+
+        font: {
+            bold: true,
+            color: {
+                rgb: "FFFFFF"
+            }
+        },
+
+        fill: {
+            fgColor: {
+                rgb: "4472C4"
+            }
+        },
+
+        alignment: {
+            horizontal: "center",
+            vertical: "center",
+            wrapText: true
+        },
+
+        border: {
+
+            top: {
+                style: "thin",
+                color: {
+                    rgb: "000000"
+                }
+            },
+
+            bottom: {
+                style: "thin",
+                color: {
+                    rgb: "000000"
+                }
+            },
+
+            left: {
+                style: "thin",
+                color: {
+                    rgb: "000000"
+                }
+            },
+
+            right: {
+                style: "thin",
+                color: {
+                    rgb: "000000"
+                }
+            }
+
+        }
+
+    };
+
+
+    const headerStyle = {
+
+        font: {
+            bold: true,
+            color: {
+                rgb: "000000"
+            }
+        },
+
+        fill: {
+            fgColor: {
+                rgb: "D9EAF7"
+            }
+        },
+
+        alignment: {
+            horizontal: "center",
+            vertical: "center",
+            wrapText: true
+        },
+
+        border: {
+
+            top: {
+                style: "thin",
+                color: {
+                    rgb: "808080"
+                }
+            },
+
+            bottom: {
+                style: "thin",
+                color: {
+                    rgb: "808080"
+                }
+            },
+
+            left: {
+                style: "thin",
+                color: {
+                    rgb: "808080"
+                }
+            },
+
+            right: {
+                style: "thin",
+                color: {
+                    rgb: "808080"
+                }
+            }
+
+        }
+
+    };
+
+
+    const titleStyle = {
+
+        font: {
+            bold: true,
+            sz: 14
+        },
+
+        alignment: {
+            horizontal: "left",
+            vertical: "center"
+        }
+
+    };
+
+
+    /*
+       A1
+    */
+
+    styleCell(
+        ws,
+        "A1",
+        titleStyle
+    );
+
+
+    /*
+       Group header A3:AI3
+    */
+
+    for (
+        let c = 0;
+        c < 35;
+        c++
+    ) {
+
+        const address =
+            XLSX.utils.encode_cell({
+                r: 2,
+                c: c
+            });
+
+
+        styleCell(
+            ws,
+            address,
+            headerGroupStyle
+        );
+
+    }
+
+
+    /*
+       Header A4:AI4
+    */
+
+    for (
+        let c = 0;
+        c < 35;
+        c++
+    ) {
+
+        const address =
+            XLSX.utils.encode_cell({
+                r: 3,
+                c: c
+            });
+
+
+        styleCell(
+            ws,
+            address,
+            headerStyle
+        );
+
+    }
+
+
+    /*
+       Format số tiền
+       Số lượng
+       Đơn giá
+    */
+
+    for (
+        let r = 4;
+        r <= 10000;
+        r++
+    ) {
+
+        /*
+           R = số lượng
+           index 17
+        */
+
+        let cell =
+            ws[
+                XLSX.utils.encode_cell({
+                    r,
+                    c: 17
+                })
+            ];
+
+        if (cell) {
+
+            cell.z =
+                '#,##0.########';
+
+        }
+
+
+        /*
+           S = đơn giá
+           index 18
+        */
+
+        cell =
+            ws[
+                XLSX.utils.encode_cell({
+                    r,
+                    c: 18
+                })
+            ];
+
+        if (cell) {
+
+            cell.z =
+                '#,##0';
+
+        }
+
+
+        /*
+           T = chiết khấu
+        */
+
+        cell =
+            ws[
+                XLSX.utils.encode_cell({
+                    r,
+                    c: 19
+                })
+            ];
+
+        if (cell) {
+
+            cell.z =
+                '#,##0';
+
+        }
+
+
+        /*
+           U = giá trị chưa thuế
+        */
+
+        cell =
+            ws[
+                XLSX.utils.encode_cell({
+                    r,
+                    c: 20
+                })
+            ];
+
+        if (cell) {
+
+            cell.z =
+                '#,##0';
+
+        }
+
+
+        /*
+           W = tiền thuế
+        */
+
+        cell =
+            ws[
+                XLSX.utils.encode_cell({
+                    r,
+                    c: 22
+                })
+            ];
+
+        if (cell) {
+
+            cell.z =
+                '#,##0';
+
+        }
+
+
+        /*
+           X = giảm trừ
+        */
+
+        cell =
+            ws[
+                XLSX.utils.encode_cell({
+                    r,
+                    c: 23
+                })
+            ];
+
+        if (cell) {
+
+            cell.z =
+                '#,##0';
+
+        }
+
+
+        /*
+           Y = tổng tiền phí
+        */
+
+        cell =
+            ws[
+                XLSX.utils.encode_cell({
+                    r,
+                    c: 24
+                })
+            ];
+
+        if (cell) {
+
+            cell.z =
+                '#,##0';
+
+        }
+
+
+        /*
+           Z = tổng CKTM
+        */
+
+        cell =
+            ws[
+                XLSX.utils.encode_cell({
+                    r,
+                    c: 25
+                })
+            ];
+
+        if (cell) {
+
+            cell.z =
+                '#,##0';
+
+        }
+
+
+        /*
+           AA = giảm trừ khác
+        */
+
+        cell =
+            ws[
+                XLSX.utils.encode_cell({
+                    r,
+                    c: 26
+                })
+            ];
+
+        if (cell) {
+
+            cell.z =
+                '#,##0';
+
+        }
+
+
+        /*
+           AB = giá trị thanh toán
+        */
+
+        cell =
+            ws[
+                XLSX.utils.encode_cell({
+                    r,
+                    c: 27
+                })
+            ];
+
+        if (cell) {
+
+            cell.z =
+                '#,##0';
+
+        }
+
+    }
+}
+
+
+/* ============================================================
+   LẤY KHOẢNG NGÀY
+============================================================ */
+
+function getDateRange(invoices) {
+
+    if (
+        !invoices ||
+        invoices.length === 0
+    ) {
+
+        return {
+            from: "...",
+            to: "..."
+        };
+
+    }
+
+
+    const dates =
+        invoices
+            .map(
+                x =>
+                    x.dateRaw ||
+                    x.date
+            )
+            .filter(Boolean)
+            .map(
+                x =>
+                    new Date(
+                        String(x)
+                            .substring(0,10)
+                    )
+            )
+            .filter(
+                x =>
+                    !isNaN(x.getTime())
+            );
+
+
+    if (!dates.length) {
+
+        return {
+            from: "...",
+            to: "..."
+        };
+
+    }
+
+
+    dates.sort(
+        (a,b) =>
+            a - b
+    );
+
+
+    return {
+
+        from:
+            formatDateObject(
+                dates[0]
+            ),
+
+        to:
+            formatDateObject(
+                dates[dates.length - 1]
+            )
+
+    };
+}
+
+
+/* ============================================================
+   FORMAT DATE OBJECT
+============================================================ */
+
+function formatDateObject(date) {
+
+    if (!date) return "...";
+
+
+    const d =
+        String(
+            date.getDate()
+        ).padStart(2, "0");
+
+
+    const m =
+        String(
+            date.getMonth() + 1
+        ).padStart(2, "0");
+
+
+    const y =
+        date.getFullYear();
+
+
+    return `${d}/${m}/${y}`;
+}
+
+
+/* ============================================================
+   XUẤT EXCEL
+============================================================ */
+
+function exportToExcel() {
+
+    if (
+        !allInvoices ||
+        allInvoices.length === 0
+    ) {
+
+        alert(
+            "Chưa có dữ liệu hóa đơn để xuất Excel!"
+        );
+
+        return;
+    }
+
+
+    try {
+
+        setStatus(
+            "info",
+            "⏳ Đang tạo file Excel theo form mẫu..."
+        );
+
+
+        /*
+           Khoảng ngày
+        */
+
+        const dateRange =
+            getDateRange(
+                allInvoices
+            );
+
+
+        /*
+           Phân loại
+        */
+
+        const normalInvoices =
+            allInvoices.filter(
+                inv => {
+
+                    const text =
+                        (
+                            inv.invoiceType ||
+                            ""
+                        ).toLowerCase();
+
+
+                    return !(
+                        text.includes("thay thế") ||
+                        text.includes("thay the") ||
+                        text.includes("điều chỉnh") ||
+                        text.includes("dieu chinh")
+                    );
+
+                }
+            );
+
+
+        const relatedInvoices =
+            allInvoices.filter(
+                inv => {
+
+                    const text =
+                        (
+                            inv.invoiceType ||
+                            ""
+                        ).toLowerCase();
+
+
+                    return (
+                        text.includes("thay thế") ||
+                        text.includes("thay the") ||
+                        text.includes("điều chỉnh") ||
+                        text.includes("dieu chinh") ||
+
+                        (
+                            inv.related &&
+                            (
+                                inv.related.number ||
+                                inv.related.series
+                            )
+                        );
+
+                }
+            );
+
+
+        /*
+           Workbook
+        */
+
+        const workbook =
+            XLSX.utils.book_new();
+
+
+        /*
+           SHEET 1
+        */
+
+        const ws1 =
+            createInvoiceSheet(
+                normalInvoices,
+                dateRange.from,
+                dateRange.to
+            );
+
+
+        formatInvoiceSheet(ws1);
+
+
+        XLSX.utils.book_append_sheet(
+            workbook,
+            ws1,
+            "Báo cáo hóa đơn"
+        );
+
+
+        /*
+           SHEET 2
+        */
+
+        const ws2 =
+            createInvoiceSheet(
+                relatedInvoices,
+                dateRange.from,
+                dateRange.to
+            );
+
+
+        formatInvoiceSheet(ws2);
+
+
+        XLSX.utils.book_append_sheet(
+            workbook,
+            ws2,
+            "Hóa đơn thay thế-điều chỉnh"
+        );
+
+
+        /*
+           TÊN FILE
+        */
+
+        const now =
+            new Date();
+
+
+        const dateFile =
+            `${now.getFullYear()}-` +
+            `${String(
+                now.getMonth() + 1
+            ).padStart(2,"0")}-` +
+            `${String(
+                now.getDate()
+            ).padStart(2,"0")}`;
+
+
+        const fileName =
+            `Hoa_don_audit_all_in_one_${dateFile}.xlsx`;
+
+
+        /*
+           EXPORT
+        */
+
+        XLSX.writeFile(
+            workbook,
+            fileName,
+            {
+                bookType: "xlsx",
+                compression: true
+            }
+        );
+
+
+        setStatus(
+            "success",
+            `✅ Đã xuất Excel thành công: ${fileName}`
+        );
+
+
+    }
+    catch (error) {
+
+        console.error(
+            "Lỗi xuất Excel:",
+            error
+        );
+
+
+        setStatus(
+            "error",
+            "❌ Không thể xuất Excel: " +
+            error.message
+        );
+
+
+        alert(
+            "Không thể xuất Excel.\n\n" +
+            error.message
+        );
+
+    }
+}
+
+
+/* ============================================================
+   CLICK NGOÀI MODAL
+============================================================ */
+
+window.addEventListener(
+    "click",
+    function(event) {
+
+        const modal =
+            document.getElementById(
+                "viewModal"
+            );
+
+
+        if (
+            event.target === modal
+        ) {
+
+            closeModal();
+
+        }
+
+    }
+);
+
+
 </script>
 
 </body>
 </html>
+```
