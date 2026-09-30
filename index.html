@@ -28,7 +28,7 @@
         .text-right { text-align: right; }
         .badge-tax { color: #1890ff; font-weight: bold; background: #e6f7ff; padding: 3px 8px; border-radius: 4px; }
         
-        .btn-action { border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500; margin-right: 4px; transition: 0.2s; }
+        .btn-action { border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500; margin-right: 4px; }
         .btn-view { background: #1890ff; color: white; }
         .btn-view:hover { background: #40a9ff; }
         .btn-dl { background: #fa8c16; color: white; }
@@ -36,11 +36,11 @@
 
         /* Modal Popup Xem Hóa Đơn */
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
-        .modal-content { background: #fff; width: 90%; max-width: 800px; max-height: 85vh; border-radius: 8px; padding: 20px; overflow-y: auto; position: relative; }
-        .close-btn { position: absolute; right: 15px; top: 15px; font-size: 22px; cursor: pointer; font-weight: bold; color: #999; }
+        .modal-content { background: #fff; width: 90%; max-width: 850px; max-height: 90vh; border-radius: 8px; padding: 24px; overflow-y: auto; position: relative; }
+        .close-btn { position: absolute; right: 20px; top: 15px; font-size: 24px; cursor: pointer; font-weight: bold; color: #999; }
         .close-btn:hover { color: #333; }
-        .invoice-details table { margin-top: 15px; }
-        .invoice-header-info { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; background: #f9f9f9; padding: 15px; border-radius: 6px; margin-bottom: 15px; }
+        .invoice-header-info { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; background: #fafafa; padding: 15px; border-radius: 6px; margin-bottom: 15px; border: 1px solid #f0f0f0; }
+        .invoice-header-info p { margin: 5px 0; font-size: 14px; }
     </style>
 </head>
 <body>
@@ -68,7 +68,7 @@
                     <th style="width: 140px;">Số Hóa Đơn</th>
                     <th style="width: 130px;">MST Bán</th>
                     <th>Đơn Vị Bán</th>
-                    <th style="width: 130px;" class="text-right">Tổng Tiền (VNĐ)</th>
+                    <th style="width: 140px;" class="text-right">Tổng Tiền (VNĐ)</th>
                     <th style="width: 150px;" class="text-center">Thao Tác</th>
                 </tr>
             </thead>
@@ -79,14 +79,12 @@
     </div>
 </div>
 
-<!-- Modal Xem Chi Tiết Hóa Đơn -->
+<!-- Modal xem chi tiết -->
 <div id="viewModal" class="modal">
     <div class="modal-content">
         <span class="close-btn" onclick="closeModal()">&times;</span>
-        <h3 style="margin-top:0; color:#0050b3;">📄 Chi Tiết Hóa Đơn Điện Tử</h3>
-        <div id="modalBody" class="invoice-details">
-            <!-- Dữ liệu chi tiết hóa đơn sẽ được điền vào đây -->
-        </div>
+        <h3 style="margin-top:0; color:#0050b3; border-bottom: 2px solid #1890ff; padding-bottom: 10px;">🧾 CHI TIẾT HÓA ĐƠN ĐIỆN TỬ</h3>
+        <div id="modalBody"></div>
     </div>
 </div>
 
@@ -149,7 +147,7 @@
                 } catch (e) {}
             }));
 
-            // Sắp xếp ngày giảm dần
+            // Sắp xếp giảm dần theo ngày
             allInvoices.sort((a, b) => new Date(b.date) - new Date(a.date));
 
             setStatus("success", `✅ Đã tải thành công ${allInvoices.length} hóa đơn từ thư mục DATA!`);
@@ -168,15 +166,20 @@
             const number = getTxt("SHDon") || getTxt("SOHDON") || getTxt("InvoiceNumber");
             if (!sellerTax || !number) return;
 
-            // Đọc danh sách hàng hóa
+            // Lấy tổng tiền đọc chuẩn theo mẫu HĐ điện tử mới (TgTTTBSo)
+            const totalAmount = getTxt("TgTTTBSo") || getTxt("TgTTien") || getTxt("TONGTIEN") || getTxt("TotalAmount") || "0";
+
+            // Đọc danh sách chi tiết các mặt hàng
             const items = [];
             const itemNodes = xml.querySelectorAll("HHDVu, HHDang");
             itemNodes.forEach(node => {
-                const name = node.querySelector("THDVu, TTen")?.textContent || "";
+                const name = node.querySelector("THHDVu, TTen")?.textContent || "";
+                const unit = node.querySelector("DVTinh, DVT")?.textContent || "";
                 const qty = node.querySelector("SLuong, SL")?.textContent || "0";
                 const price = node.querySelector("DGia, DG")?.textContent || "0";
                 const amount = node.querySelector("ThTien, TT")?.textContent || "0";
-                if(name) items.push({ name, qty, price, amount });
+                const vat = node.querySelector("TSuat")?.textContent || "";
+                if(name) items.push({ name, unit, qty, price, amount, vat });
             });
 
             allInvoices.push({
@@ -187,9 +190,13 @@
                 number: number,
                 sellerTax: sellerTax,
                 sellerName: getTxt("NBan > Ten") || getTxt("NBan > DVTen") || getTxt("SellerName") || "Chưa rõ tên",
+                sellerAddr: getTxt("NBan > DChi") || "",
                 buyerName: getTxt("NMua > Ten") || getTxt("NMua > DVTen") || getTxt("BuyerName") || "",
-                totalAmount: getTxt("TgTTien") || getTxt("TONGTIEN") || getTxt("TotalAmount") || "0",
-                vatAmount: getTxt("TgTThue") || getTxt("VAT") || "0",
+                buyerTax: getTxt("NMua > MST") || "",
+                totalBeforeTax: getTxt("TgTCThue") || "0",
+                vatAmount: getTxt("TgTThue") || "0",
+                totalAmount: totalAmount,
+                totalText: getTxt("TgTTTBChu") || "",
                 items: items
             });
         } catch(e) {}
@@ -230,7 +237,8 @@
             itemsHtml += `
                 <tr>
                     <td class="text-center">${idx + 1}</td>
-                    <td>${item.name}</td>
+                    <td><b>${item.name}</b></td>
+                    <td class="text-center">${item.unit}</td>
                     <td class="text-center">${fmt(item.qty)}</td>
                     <td class="text-right">${fmt(item.price)}</td>
                     <td class="text-right">${fmt(item.amount)}</td>
@@ -241,35 +249,40 @@
         document.getElementById("modalBody").innerHTML = `
             <div class="invoice-header-info">
                 <div>
-                    <p><b>Đơn Vị Bán:</b> ${inv.sellerName}</p>
-                    <p><b>Mã Số Thuế:</b> ${inv.sellerTax}</p>
+                    <p><b>ĐƠN VỊ BÁN HÀNG:</b> ${inv.sellerName}</p>
+                    <p><b>Mã Số Thuế:</b> <span class="badge-tax">${inv.sellerTax}</span></p>
+                    <p><b>Địa chỉ:</b> ${inv.sellerAddr}</p>
                 </div>
                 <div>
-                    <p><b>Số Hóa Đơn:</b> ${inv.series ? inv.series + '-' : ''}${inv.number}</p>
+                    <p><b>Mẫu số - Ký hiệu:</b> ${inv.series}</p>
+                    <p><b>Số Hóa Đơn:</b> <b style="color:#cf1322; font-size:16px;">${inv.number}</b></p>
                     <p><b>Ngày Lập:</b> ${inv.date}</p>
-                    ${inv.buyerName ? `<p><b>Đơn Vị Mua:</b> ${inv.buyerName}</p>` : ''}
+                    ${inv.buyerName ? `<p><b>Khách Hàng:</b> ${inv.buyerName}</p>` : ''}
                 </div>
             </div>
 
-            <h4 style="margin-bottom: 8px;">Danh Sách Hàng Hóa / Dịch Vụ:</h4>
+            <h4 style="margin: 15px 0 8px 0; color:#333;">CHI TIẾT HÀNG HÓA / DỊCH VỤ:</h4>
             <table>
                 <thead>
                     <tr>
                         <th style="width: 40px;" class="text-center">STT</th>
-                        <th>Tên Hàng Hóa / Dịch Vụ</th>
-                        <th style="width: 80px;" class="text-center">Số Lượng</th>
+                        <th>Tên Tên Hàng Hóa, Dịch Vụ</th>
+                        <th style="width: 70px;" class="text-center">ĐVT</th>
+                        <th style="width: 70px;" class="text-center">S.Lượng</th>
                         <th style="width: 110px;" class="text-right">Đơn Giá</th>
                         <th style="width: 120px;" class="text-right">Thành Tiền</th>
                     </tr>
                 </thead>
                 <tbody>
-                    ${itemsHtml || '<tr><td colspan="5" class="text-center">Không có chi tiết mặt hàng</td></tr>'}
+                    ${itemsHtml || '<tr><td colspan="6" class="text-center">Không có chi tiết dòng hàng</td></tr>'}
                 </tbody>
             </table>
 
-            <div style="text-align: right; margin-top: 15px; font-size: 16px;">
-                <p>Tiền Thuế VAT: <b>${fmt(inv.vatAmount)} VNĐ</b></p>
-                <p style="color: #0050b3; font-size: 18px;"><b>Tổng Tiền Thanh Toán: ${fmt(inv.totalAmount)} VNĐ</b></p>
+            <div style="text-align: right; margin-top: 15px; background: #e6f7ff; padding: 15px; border-radius: 6px;">
+                <p style="margin: 4px 0;">Cộng tiền hàng: <b>${fmt(inv.totalBeforeTax)} VNĐ</b></p>
+                <p style="margin: 4px 0;">Tiền thuế VAT: <b>${fmt(inv.vatAmount)} VNĐ</b></p>
+                <p style="margin: 8px 0 0 0; color: #0050b3; font-size: 18px;"><b>TỔNG CỘNG TIỀN THANH TOÁN: ${fmt(inv.totalAmount)} VNĐ</b></p>
+                ${inv.totalText ? `<p style="margin: 4px 0 0 0; font-style: italic; color: #555;">(Số tiền viết bằng chữ: ${inv.totalText})</p>` : ''}
             </div>
         `;
         document.getElementById("viewModal").style.display = "flex";
