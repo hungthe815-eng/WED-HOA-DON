@@ -59,7 +59,7 @@
         </div>
 
         <div id="statusBox" class="status-box status-info">
-            ⏳ Đang kết nối và quét dữ liệu hóa đơn...
+            ⏳ Đang kết nối kho dữ liệu GitHub...
         </div>
 
         <div class="search-container">
@@ -94,85 +94,70 @@
 </div>
 
 <script>
+    const pathSegments = window.location.pathname.split('/').filter(Boolean);
+    const repoName = pathSegments.length > 0 ? pathSegments[0] : '';
+    const ownerName = window.location.hostname.split('.')[0];
     let allInvoices = [];
 
     window.addEventListener('DOMContentLoaded', () => { loadInvoicesFromGitHub(); });
 
     async function loadInvoicesFromGitHub() {
-        setStatus("info", "⏳ Đang quét dữ liệu hóa đơn...");
-        allInvoices = [];
-
-        let fileList = [];
-        
-        // 1. Thử đọc qua file danh sách DATA/files.json
-        try {
-            const listRes = await fetch('DATA/files.json');
-            if (listRes.ok) {
-                fileList = await listRes.json();
-            }
-        } catch(e) {}
-
-        // 2. Nếu không có file.json, tự động gọi GitHub API quét trực tiếp thư mục DATA
-        if (fileList.length === 0) {
-            try {
-                const hostname = window.location.hostname;
-                const pathname = window.location.pathname;
-                let ownerName = "";
-                let repoName = "";
-
-                if (hostname.includes("github.io")) {
-                    ownerName = hostname.split('.')[0];
-                    const pathSegments = pathname.split('/').filter(Boolean);
-                    repoName = pathSegments.length > 0 ? pathSegments[0] : '';
-                }
-
-                if (ownerName && repoName) {
-                    const apiUrl = `https://api.github.com/repos/${ownerName}/${repoName}/contents/DATA`;
-                    const res = await fetch(apiUrl);
-                    if (res.ok) {
-                        const files = await res.json();
-                        fileList = files.filter(f => f.name.endsWith('.xml') || f.name.endsWith('.zip')).map(f => f.name);
-                    }
-                }
-            } catch(e) {}
-        }
-
-        if (fileList.length === 0) {
-            setStatus("error", "⚠️ Không tìm thấy danh sách file trong thư mục DATA. Vui lòng tạo file DATA/files.json liệt kê tên file XML.");
-            renderTable([]);
+        setStatus("info", "⏳ Đang quét danh sách file trong thư mục DATA...");
+        if (!ownerName || !repoName) {
+            setStatus("error", "⚠️ Hãy chạy trang web trên đường dẫn GitHub Pages.");
             return;
         }
 
-        // Tải và đọc từng file XML
-        await Promise.all(fileList.map(async (fileName) => {
-            try {
-                const fileUrl = `DATA/${fileName}`;
-                const contentRes = await fetch(fileUrl);
-                if (!contentRes.ok) return;
+        const apiUrl = `https://api.github.com/repos/${ownerName}/${repoName}/contents/DATA`;
 
-                if (fileName.endsWith('.xml')) {
-                    const text = await contentRes.text();
-                    parseAndAddXml(text, fileName, text);
-                } else if (fileName.endsWith('.zip')) {
-                    const blob = await contentRes.blob();
-                    const zip = await JSZip.loadAsync(blob);
-                    for (let relativePath in zip.files) {
-                        if (relativePath.endsWith('.xml')) {
-                            const xmlText = await zip.files[relativePath].async('string');
-                            parseAndAddXml(xmlText, fileName, xmlText);
+        try {
+            const res = await fetch(apiUrl);
+            if (!res.ok) {
+                if (res.status === 404) {
+                    setStatus("error", "⚠️ Chưa thấy thư mục 'DATA'. Bạn hãy tạo thư mục tên 'DATA' trên máy và chép file XML/ZIP vào nhé.");
+                } else {
+                    setStatus("error", `❌ Lỗi lấy dữ liệu (${res.status}).`);
+                }
+                renderTable([]);
+                return;
+            }
+
+            const files = await res.json();
+            const xmlOrZipFiles = files.filter(f => f.name.endsWith('.xml') || f.name.endsWith('.zip'));
+
+            if (xmlOrZipFiles.length === 0) {
+                setStatus("info", "📁 Thư mục DATA hiện chưa có file hóa đơn XML/ZIP nào.");
+                renderTable([]);
+                return;
+            }
+
+            allInvoices = [];
+            await Promise.all(xmlOrZipFiles.map(async (file) => {
+                try {
+                    if (file.name.endsWith('.xml')) {
+                        const contentRes = await fetch(file.download_url);
+                        const text = await contentRes.text();
+                        parseAndAddXml(text, file.name, text);
+                    } else if (file.name.endsWith('.zip')) {
+                        const contentRes = await fetch(file.download_url);
+                        const blob = await contentRes.blob();
+                        const zip = await JSZip.loadAsync(blob);
+                        for (let relativePath in zip.files) {
+                            if (relativePath.endsWith('.xml')) {
+                                const xmlText = await zip.files[relativePath].async('string');
+                                parseAndAddXml(xmlText, file.name, xmlText);
+                            }
                         }
                     }
-                }
-            } catch (e) {}
-        }));
+                } catch (e) {}
+            }));
 
-        allInvoices.sort((a, b) => new Date(b.date) - new Date(a.date));
-        if (allInvoices.length > 0) {
-            setStatus("success", `✅ Đã quét và tải thành công ${allInvoices.length} hóa đơn từ thư mục DATA!`);
-        } else {
-            setStatus("error", "⚠️ Đã tìm thấy file nhưng không đọc được cấu trúc XML hóa đơn hợp lệ.");
+            allInvoices.sort((a, b) => new Date(b.date) - new Date(a.date));
+            setStatus("success", `✅ Đã tải thành công ${allInvoices.length} hóa đơn từ thư mục DATA!`);
+            renderTable(allInvoices);
+        } catch (err) {
+            setStatus("error", "❌ Lỗi kết nối: " + err.message);
         }
-        renderTable(allInvoices);
     }
 
     function parseAndAddXml(xmlText, fileName, rawContent) {
@@ -202,10 +187,12 @@
             if (!sellerTax || !number) return;
 
             const totalAmount = getTxt(xml, "TgTTTBSo") || getTxt(xml, "TgTTien") || getTxt(xml, "TONGTIEN") || getTxt(xml, "TotalAmount") || "0";
-            const khms = getTxt(ttChung, "KHMSHDon") || getTxt(xml, "KHMS") || "1";
-            const series = getTxt(ttChung, "KHHDon") || getTxt(xml, "KH") || getTxt(xml, "InvoiceSeries") || "";
-            const buyerName = getTxt(nMua, "Ten") || getTxt(nMua, "DVTen") || getTxt(xml, "BuyerName") || "";
-            const buyerPerson = getTxt(xml, "HVTNMHang") || getTxt(nMua, "HVTNMHang") || getTxt(nMua, "TNMua") || getTxt(nMua, "Ten") || "";
+
+            let ngayKy = "";
+            let signNodes = getNodes(xml, "SigningTime");
+            if (signNodes.length > 0) ngayKy = signNodes[0].textContent.trim().substring(0, 10);
+
+            let buyerPerson = getTxt(xml, "HVTNMHang") || getTxt(nMua, "HVTNMHang") || getTxt(nMua, "TNMua") || getTxt(nMua, "Ten");
 
             const items = [];
             const itemNodes = getNodes(xml, "HHDVu");
@@ -225,13 +212,13 @@
                 fileName: fileName,
                 rawContent: rawContent,
                 date: getTxt(ttChung, "NLap") || getTxt(xml, "NGAY") || getTxt(xml, "InvoiceDate") || "---",
-                series: series,
-                khms: khms,
+                series: getTxt(ttChung, "KHHDon") || getTxt(xml, "KH") || getTxt(xml, "InvoiceSeries") || "",
+                khms: getTxt(ttChung, "KHMSHDon"),
                 number: number,
                 sellerTax: sellerTax,
                 sellerName: getTxt(nBan, "Ten") || getTxt(nBan, "DVTen") || getTxt(xml, "SellerName") || "Chưa rõ tên",
                 sellerAddr: getTxt(nBan, "DChi") || "",
-                buyerName: buyerName,
+                buyerName: getTxt(nMua, "Ten") || getTxt(nMua, "DVTen") || getTxt(xml, "BuyerName") || "",
                 buyerTax: getTxt(nMua, "MST") || "",
                 buyerAddr: getTxt(nMua, "DChi") || "",
                 buyerPerson: buyerPerson,
@@ -273,6 +260,7 @@
     function viewInvoice(index) {
         const inv = allInvoices[index];
         const fmt = (v) => v ? Number(v).toLocaleString("vi-VN") : "0";
+        
         let itemsHtml = "";
         inv.items.forEach((item, idx) => {
             itemsHtml += `
@@ -295,31 +283,44 @@
                     <p><b>Địa chỉ:</b> ${inv.sellerAddr}</p>
                 </div>
                 <div>
-                    <p><b>Mẫu số - Ký hiệu:</b> ${inv.khms} - ${inv.series}</p>
+                    <p><b>Mẫu số - Ký hiệu:</b> ${inv.series}</p>
                     <p><b>Số Hóa Đơn:</b> <b style="color:#cf1322; font-size:16px;">${inv.number}</b></p>
                     <p><b>Ngày Lập:</b> ${inv.date}</p>
                     ${inv.buyerName ? `<p><b>Khách Hàng:</b> ${inv.buyerName}</p>` : ''}
-                    ${inv.buyerPerson ? `<p><b>Người nhận hàng:</b> ${inv.buyerPerson}</p>` : ''}
                 </div>
             </div>
+
+            <h4 style="margin: 15px 0 8px 0; color:#333;">CHI TIẾT HÀNG HÓA / DỊCH VỤ:</h4>
             <table>
                 <thead>
                     <tr>
-                        <th class="text-center">STT</th>
+                        <th style="width: 40px;" class="text-center">STT</th>
                         <th>Tên Hàng Hóa, Dịch Vụ</th>
-                        <th class="text-center">ĐVT</th>
-                        <th class="text-center">S.Lượng</th>
-                        <th class="text-right">Đơn Giá</th>
-                        <th class="text-right">Thành Tiền</th>
+                        <th style="width: 70px;" class="text-center">ĐVT</th>
+                        <th style="width: 70px;" class="text-center">S.Lượng</th>
+                        <th style="width: 110px;" class="text-right">Đơn Giá</th>
+                        <th style="width: 120px;" class="text-right">Thành Tiền</th>
                     </tr>
                 </thead>
-                <tbody>${itemsHtml}</tbody>
+                <tbody>
+                    ${itemsHtml || '<tr><td colspan="6" class="text-center">Không có chi tiết dòng hàng</td></tr>'}
+                </tbody>
             </table>
+
+            <div style="text-align: right; margin-top: 15px; background: #e6f7ff; padding: 15px; border-radius: 6px;">
+                <p style="margin: 4px 0;">Cộng tiền hàng: <b>${fmt(inv.totalBeforeTax)} VNĐ</b></p>
+                <p style="margin: 4px 0;">Tiền thuế VAT: <b>${fmt(inv.vatAmount)} VNĐ</b></p>
+                <p style="margin: 8px 0 0 0; color: #0050b3; font-size: 18px;"><b>TỔNG CỘNG TIỀN THANH TOÁN: ${fmt(inv.totalAmount)} VNĐ</b></p>
+                ${inv.totalText ? `<p style="margin: 4px 0 0 0; font-style: italic; color: #555;">(Số tiền viết bằng chữ: ${inv.totalText})</p>` : ''}
+            </div>
         `;
         document.getElementById("viewModal").style.display = "flex";
     }
 
-    function closeModal() { document.getElementById("viewModal").style.display = "none"; }
+    function closeModal() {
+        document.getElementById("viewModal").style.display = "none";
+    }
+
     function downloadXml(index) {
         const inv = allInvoices[index];
         const blob = new Blob([inv.rawContent], { type: "text/xml" });
@@ -328,20 +329,154 @@
         a.download = `${inv.sellerTax}_${inv.number}.xml`;
         a.click();
     }
+
     function filterTable() {
         const kw = document.getElementById("searchInput").value.toLowerCase();
-        const filtered = allInvoices.filter(inv => inv.sellerTax.toLowerCase().includes(kw) || inv.sellerName.toLowerCase().includes(kw) || inv.number.toLowerCase().includes(kw));
+        const filtered = allInvoices.filter(inv => 
+            inv.sellerTax.toLowerCase().includes(kw) ||
+            inv.sellerName.toLowerCase().includes(kw) ||
+            inv.number.toLowerCase().includes(kw)
+        );
         renderTable(filtered);
     }
+
     function setStatus(type, msg) {
         const el = document.getElementById("statusBox");
         el.className = `status-box status-${type}`;
         el.innerHTML = msg;
     }
+
+    // Hàm xuất dữ liệu ra file Excel chuẩn 35 cột thuế
     function exportToExcel() {
-        if (!allInvoices.length) { alert("Chưa có dữ liệu!"); return; }
-        // Hàm xuất Excel giữ nguyên logic cũ
+        if (!allInvoices || allInvoices.length === 0) {
+            alert("Chưa có dữ liệu hóa đơn để xuất Excel!");
+            return;
+        }
+
+        let allRows = [];
+        allInvoices.forEach(inv => {
+            if (inv.items && inv.items.length > 0) {
+                inv.items.forEach(item => {
+                    allRows.push({
+                        "Loại hoá đơn": "Đầu vào",
+                        "Ký hiệu mẫu số": inv.khms,
+                        "Số hóa đơn": inv.number,
+                        "Ký hiệu": inv.series,
+                        "Ngày hóa đơn": inv.date,
+                        "Ngày ký hóa đơn": inv.date,
+                        "Tên đơn vị bán": inv.sellerName,
+                        "Mã số thuế bên bán": inv.sellerTax,
+                        "Địa chỉ bên bán": inv.sellerAddr,
+                        "Tên đơn vị mua": inv.buyerName,
+                        "Mã số thuế mua": inv.buyerTax,
+                        "Địa chỉ mua": inv.buyerAddr,
+                        "Tên người mua": inv.buyerPerson,
+                        "Tính chất": item.tchat || "",
+                        "Tên hàng hóa/dịch vụ": item.name,
+                        "Mã SP": item.maSP || "",
+                        "ĐVT": item.unit,
+                        "Số lượng": item.qty,
+                        "Đơn giá": item.price,
+                        "Chiết khấu": 0,
+                        "Giá trị chưa thuế": item.amount,
+                        "Thuế suất": item.vat,
+                        "Tiền thuế": Number(inv.vatAmount) || 0,
+                        "Tổng giảm trừ ko chịu thuế": "",
+                        "Tổng tiền phí": "",
+                        "Tổng CKTM": "",
+                        "Tổng giảm trừ khác": "",
+                        "Giá trị thanh toán": item.amount + (Number(inv.vatAmount) || 0),
+                        "Trạng thái HD": "Hóa đơn mới",
+                        "Kết quả kiểm tra": "Đã cấp mã hóa đơn",
+                        "Loại liên quan": "",
+                        "Số HĐ liên quan": "",
+                        "Ký hiệu HĐ liên quan": "",
+                        "Ngày HĐ liên quan": "",
+                        "Ghi chú liên quan": ""
+                    });
+                });
+            }
+        });
+
+        let activeRows = [];
+        let replacedRows = [];
+        allRows.forEach(row => {
+            let st = String(row["Trạng thái HD"]).toLowerCase();
+            if (st.includes("thay thế") || st.includes("điều chỉnh")) {
+                replacedRows.push(row);
+            } else {
+                activeRows.push(row);
+            }
+        });
+        if (replacedRows.length === 0 && activeRows.length > 0) {
+            activeRows = allRows;
+        }
+
+        function buildSheetUniversal(dataRows) {
+            let wsData = [
+                ["Từ ngày ... đến ..."],
+                [],
+                []
+            ];
+            wsData[2] = [];
+            wsData[2][0] = "THÔNG TIN HÓA ĐƠN";
+            wsData[2][6] = "THÔNG TIN BÊN BÁN";
+            wsData[2][9] = "THÔNG TIN BÊN MUA";
+            wsData[2][13] = "HÀNG HÓA / DỊCH VỤ";
+            wsData[2][28] = "TRẠNG THÁI";
+            wsData[2][30] = "HÓA ĐƠN LIÊN QUAN";
+
+            let cols = [
+                "Loại hoá đơn", "Ký hiệu mẫu số", "Số hóa đơn", "Ký hiệu", "Ngày hóa đơn", "Ngày ký hóa đơn",
+                "Tên đơn vị bán", "Mã số thuế bên bán", "Địa chỉ bên bán",
+                "Tên đơn vị mua", "Mã số thuế mua", "Địa chỉ mua", "Tên người mua",
+                "Tính chất", "Tên hàng hóa/dịch vụ", "Mã SP", "ĐVT", "Số lượng", "Đơn giá", "Chiết khấu",
+                "Giá trị chưa thuế", "Thuế suất", "Tiền thuế",
+                "Tổng giảm trừ ko chịu thuế", "Tổng tiền phí", "Tổng CKTM", "Tổng giảm trừ khác", "Giá trị thanh toán",
+                "Trạng thái HD", "Kết quả kiểm tra",
+                "Loại liên quan", "Số HĐ liên quan", "Ký hiệu HĐ liên quan", "Ngày HĐ liên quan", "Ghi chú liên quan"
+            ];
+            wsData.push(cols);
+
+            dataRows.forEach(item => {
+                let r = new Array(35).fill("");
+                cols.forEach((colName, idx) => { r[idx] = item[colName] !== undefined ? item[colName] : ""; });
+                wsData.push(r);
+            });
+
+            let ws = XLSX.utils.aoa_to_sheet(wsData);
+            let colWidths = new Array(35).fill(12);
+            wsData.forEach(row => {
+                if (Array.isArray(row)) {
+                    row.forEach((cellVal, colIdx) => {
+                        let len = cellVal ? String(cellVal).length : 10;
+                        if (len > colWidths[colIdx]) colWidths[colIdx] = Math.min(len + 3, 45);
+                    });
+                }
+            });
+            ws['!cols'] = colWidths.map(w => ({ wch: w }));
+            ws['!merges'] = [
+                { s: { r: 2, c: 0 }, e: { r: 2, c: 5 } },
+                { s: { r: 2, c: 6 }, e: { r: 2, c: 8 } },
+                { s: { r: 2, c: 9 }, e: { r: 2, c: 12 } },
+                { s: { r: 2, c: 13 }, e: { r: 2, c: 27 } },
+                { s: { r: 2, c: 28 }, e: { r: 2, c: 29 } },
+                { s: { r: 2, c: 30 }, e: { r: 2, c: 34 } }
+            ];
+            return ws;
+        }
+
+        let ws1 = buildSheetUniversal(activeRows);
+        let ws2 = buildSheetUniversal(replacedRows.length > 0 ? replacedRows : []);
+
+        let wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws1, "Báo cáo hóa đơn");
+        XLSX.utils.book_append_sheet(wb, ws2, "Hóa đơn thay thế-điều chỉnh");
+
+        const today = new Date().toISOString().split('T')[0];
+        XLSX.writeFile(wb, `Hoa_don_audit_all_in_one_${today}.xlsx`);
     }
 </script>
+
 </body>
 </html>
