@@ -94,17 +94,31 @@
 </div>
 
 <script>
-    const pathSegments = window.location.pathname.split('/').filter(Boolean);
-    const repoName = pathSegments.length > 0 ? pathSegments[0] : '';
-    const ownerName = window.location.hostname.split('.')[0];
     let allInvoices = [];
 
     window.addEventListener('DOMContentLoaded', () => { loadInvoicesFromGitHub(); });
 
     async function loadInvoicesFromGitHub() {
         setStatus("info", "⏳ Đang quét danh sách file trong thư mục DATA...");
+        
+        let ownerName = "";
+        let repoName = "";
+
+        const hostname = window.location.hostname;
+        const pathname = window.location.pathname;
+
+        if (hostname.includes("github.io")) {
+            ownerName = hostname.split('.')[0];
+            const pathSegments = pathname.split('/').filter(Boolean);
+            repoName = pathSegments.length > 0 ? pathSegments[0] : '';
+        } else {
+            // Môi trường chạy local hoặc tùy chỉnh, nếu cần test trực tiếp qua API công khai hoặc cấu hình tĩnh
+            ownerName = "galaxy-studio"; // Thay bằng tên owner thực tế nếu test local
+            repoName = "invoice-repo";   // Thay bằng tên repo thực tế nếu test local
+        }
+
         if (!ownerName || !repoName) {
-            setStatus("error", "⚠️ Hãy chạy trang web trên đường dẫn GitHub Pages.");
+            setStatus("error", "⚠️ Không xác định được Repository GitHub. Vui lòng kiểm tra lại đường dẫn chạy trang web.");
             return;
         }
 
@@ -114,9 +128,9 @@
             const res = await fetch(apiUrl);
             if (!res.ok) {
                 if (res.status === 404) {
-                    setStatus("error", "⚠️ Chưa thấy thư mục 'DATA'. Bạn hãy tạo thư mục tên 'DATA' trên máy và chép file XML/ZIP vào nhé.");
+                    setStatus("error", "⚠️ Chưa thấy thư mục 'DATA' trên kho GitHub của bạn. Vui lòng tạo thư mục 'DATA' và đặt file hóa đơn vào.");
                 } else {
-                    setStatus("error", `❌ Lỗi lấy dữ liệu (${res.status}).`);
+                    setStatus("error", `❌ Lỗi kết nối API GitHub (${res.status}).`);
                 }
                 renderTable([]);
                 return;
@@ -126,7 +140,7 @@
             const xmlOrZipFiles = files.filter(f => f.name.endsWith('.xml') || f.name.endsWith('.zip'));
 
             if (xmlOrZipFiles.length === 0) {
-                setStatus("info", "📁 Thư mục DATA hiện chưa có file hóa đơn XML/ZIP nào.");
+                setStatus("info", "📁 Thư mục DATA hiện không có file XML hoặc ZIP nào.");
                 renderTable([]);
                 return;
             }
@@ -153,10 +167,10 @@
             }));
 
             allInvoices.sort((a, b) => new Date(b.date) - new Date(a.date));
-            setStatus("success", `✅ Đã tải thành công ${allInvoices.length} hóa đơn từ thư mục DATA!`);
+            setStatus("success", `✅ Đã quét và tải thành công ${allInvoices.length} hóa đơn từ thư mục DATA!`);
             renderTable(allInvoices);
         } catch (err) {
-            setStatus("error", "❌ Lỗi kết nối: " + err.message);
+            setStatus("error", "❌ Lỗi kết nối hệ thống: " + err.message);
         }
     }
 
@@ -188,11 +202,13 @@
 
             const totalAmount = getTxt(xml, "TgTTTBSo") || getTxt(xml, "TgTTien") || getTxt(xml, "TONGTIEN") || getTxt(xml, "TotalAmount") || "0";
 
-            let ngayKy = "";
-            let signNodes = getNodes(xml, "SigningTime");
-            if (signNodes.length > 0) ngayKy = signNodes[0].textContent.trim().substring(0, 10);
+            // Lấy đúng Ký hiệu mẫu số (KHMSHDon) và Ký hiệu hóa đơn (KHHDon)
+            const khms = getTxt(ttChung, "KHMSHDon") || getTxt(xml, "KHMS") || "1";
+            const series = getTxt(ttChung, "KHHDon") || getTxt(xml, "KH") || getTxt(xml, "InvoiceSeries") || "";
 
-            let buyerPerson = getTxt(xml, "HVTNMHang") || getTxt(nMua, "HVTNMHang") || getTxt(nMua, "TNMua") || getTxt(nMua, "Ten");
+            // Lấy đầy đủ thông tin tên người mua & người đại diện nhận hàng
+            const buyerName = getTxt(nMua, "Ten") || getTxt(nMua, "DVTen") || getTxt(xml, "BuyerName") || "";
+            const buyerPerson = getTxt(xml, "HVTNMHang") || getTxt(nMua, "HVTNMHang") || getTxt(nMua, "TNMua") || getTxt(nMua, "Ten") || "";
 
             const items = [];
             const itemNodes = getNodes(xml, "HHDVu");
@@ -212,13 +228,13 @@
                 fileName: fileName,
                 rawContent: rawContent,
                 date: getTxt(ttChung, "NLap") || getTxt(xml, "NGAY") || getTxt(xml, "InvoiceDate") || "---",
-                series: getTxt(ttChung, "KHHDon") || getTxt(xml, "KH") || getTxt(xml, "InvoiceSeries") || "",
-                khms: getTxt(ttChung, "KHMSHDon"),
+                series: series,
+                khms: khms,
                 number: number,
                 sellerTax: sellerTax,
                 sellerName: getTxt(nBan, "Ten") || getTxt(nBan, "DVTen") || getTxt(xml, "SellerName") || "Chưa rõ tên",
                 sellerAddr: getTxt(nBan, "DChi") || "",
-                buyerName: getTxt(nMua, "Ten") || getTxt(nMua, "DVTen") || getTxt(xml, "BuyerName") || "",
+                buyerName: buyerName,
                 buyerTax: getTxt(nMua, "MST") || "",
                 buyerAddr: getTxt(nMua, "DChi") || "",
                 buyerPerson: buyerPerson,
@@ -283,10 +299,11 @@
                     <p><b>Địa chỉ:</b> ${inv.sellerAddr}</p>
                 </div>
                 <div>
-                    <p><b>Mẫu số - Ký hiệu:</b> ${inv.series}</p>
+                    <p><b>Mẫu số - Ký hiệu:</b> ${inv.khms} - ${inv.series}</p>
                     <p><b>Số Hóa Đơn:</b> <b style="color:#cf1322; font-size:16px;">${inv.number}</b></p>
                     <p><b>Ngày Lập:</b> ${inv.date}</p>
                     ${inv.buyerName ? `<p><b>Khách Hàng:</b> ${inv.buyerName}</p>` : ''}
+                    ${inv.buyerPerson ? `<p><b>Người nhận hàng:</b> ${inv.buyerPerson}</p>` : ''}
                 </div>
             </div>
 
