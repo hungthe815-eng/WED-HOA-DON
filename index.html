@@ -125,10 +125,12 @@
                         activeRows.push(row);
                     }
                 });
+                
                 if (replacedRows.length === 0 && activeRows.length > 0) {
                     activeRows = allRows;
                 }
 
+                // Dùng chính hàm dựng Sheet theo đúng form mẫu
                 let ws1 = buildSheetUniversal(activeRows);
                 let ws2 = buildSheetUniversal(replacedRows);
 
@@ -184,7 +186,6 @@
             let buyerMST = getVal(nMua, "MST");
             let buyerAddress = getVal(nMua, "DChi");
             
-            // Ưu tiên lấy HVTNMHang cấp root hoặc NMua, sau đó đến TNMua, cuối cùng fallback sang buyerName
             let buyerPerson = getVal(xmlDoc, "HVTNMHang") || getVal(nMua, "HVTNMHang") || getVal(nMua, "TNMua") || buyerName;
 
             let items = getNodes(xmlDoc, "HHDVu");
@@ -218,6 +219,7 @@
             }
         }
 
+        // Dựng Sheet Excel chính xác theo mẫu thiết kế
         function buildSheetUniversal(dataRows) {
             let wsData = [
                 ["Từ ngày ... đến ..."],
