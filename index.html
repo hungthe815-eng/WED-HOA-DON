@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tra Cứu Hóa Đơn - Galaxy Studio</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <!-- Thêm thư viện xuất file Excel -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         * { box-sizing: border-box; }
@@ -86,7 +85,6 @@
     </div>
 </div>
 
-<!-- Modal xem chi tiết -->
 <div id="viewModal" class="modal">
     <div class="modal-content">
         <span class="close-btn" onclick="closeModal()">&times;</span>
@@ -164,59 +162,70 @@
 
     function parseAndAddXml(xmlText, fileName, rawContent) {
         try {
-            const xml = new DOMParser().parseFromString(xmlText, "text/xml");
-            const getTxt = (tag) => { const el = xml.querySelector(tag); return el ? el.textContent.trim() : ""; };
-            
-            const sellerTax = getTxt("NBan > MST") || getTxt("MSTNBan") || getTxt("SellerTaxCode");
-            const number = getTxt("SHDon") || getTxt("SOHDON") || getTxt("InvoiceNumber");
+            let parser = new DOMParser();
+            let xml = parser.parseFromString(xmlText, "text/xml");
+
+            function getNodes(parent, name) {
+                if (!parent) return [];
+                let res = parent.getElementsByTagName(name);
+                if (res.length === 0) res = parent.getElementsByTagNameNS("*", name);
+                return res;
+            }
+
+            function getTxt(parent, name) {
+                if (!parent) return "";
+                let n = getNodes(parent, name);
+                return (n.length > 0 && n[0] && n[0].textContent) ? n[0].textContent.trim() : "";
+            }
+
+            let ttChung = getNodes(xml, "TTChung")[0] || xml;
+            let nBan = getNodes(xml, "NBan")[0] || xml;
+            let nMua = getNodes(xml, "NMua")[0] || xml;
+
+            const sellerTax = getTxt(nBan, "MST") || getTxt(xml, "MSTNBan") || getTxt(xml, "SellerTaxCode");
+            const number = getTxt(ttChung, "SHDon") || getTxt(xml, "SOHDON") || getTxt(xml, "InvoiceNumber");
             if (!sellerTax || !number) return;
 
-            const invoiceType = getTxt("THDon") || "HÓA ĐƠN GIÁ TRỊ GIA TĂNG";
-            const templateCode = getTxt("KHHDon") ? getTxt("KHHDon").substring(0, 1) : "1";
-            const invoiceSeries = getTxt("KHHDon") || getTxt("KH") || getTxt("InvoiceSeries") || "";
-            const invoiceDate = getTxt("NLap") || getTxt("NGAY") || getTxt("InvoiceDate") || "";
-            const signDate = getTxt("NgayKy") || invoiceDate;
+            const totalAmount = getTxt(xml, "TgTTTBSo") || getTxt(xml, "TgTTien") || getTxt(xml, "TONGTIEN") || getTxt(xml, "TotalAmount") || "0";
 
-            const totalAmount = getTxt("TgTTTBSo") || getTxt("TgTTien") || getTxt("TONGTIEN") || getTxt("TotalAmount") || "0";
+            let ngayKy = "";
+            let signNodes = getNodes(xml, "SigningTime");
+            if (signNodes.length > 0) ngayKy = signNodes[0].textContent.trim().substring(0, 10);
+
+            let buyerPerson = getTxt(xml, "HVTNMHang") || getTxt(nMua, "HVTNMHang") || getTxt(nMua, "TNMua") || getTxt(nMua, "Ten");
 
             const items = [];
-            const itemNodes = xml.querySelectorAll("HHDVu, HHDang");
+            const itemNodes = getNodes(xml, "HHDVu");
             itemNodes.forEach(node => {
-                const name = node.querySelector("THHDVu, TTen")?.textContent || "";
-                const code = node.querySelector("MHHDVu, MS")?.textContent || "";
-                const unit = node.querySelector("DVTinh, DVT")?.textContent || "";
-                const qty = node.querySelector("SLuong, SL")?.textContent || "0";
-                const price = node.querySelector("DGia, DG")?.textContent || "0";
-                const discount = node.querySelector("STCKhai, CK")?.textContent || "0";
-                const amount = node.querySelector("ThTien, TT")?.textContent || "0";
-                const vat = node.querySelector("TSuat")?.textContent || "8%";
-                const vatAmt = node.querySelector("TThue")?.textContent || "0";
-                const tc = node.querySelector("TChat")?.textContent || "1";
-
-                if(name) items.push({ tc, name, code, unit, qty, price, discount, amount, vat, vatAmt });
+                const name = getTxt(node, "THHDVu") || getTxt(node, "TTen");
+                const maSP = getTxt(node, "MHHDVu");
+                const unit = getTxt(node, "DVTinh") || getTxt(node, "DVT");
+                const qty = parseFloat(getTxt(node, "SLuong") || getTxt(node, "SL")) || 0;
+                const price = parseFloat(getTxt(node, "DGia") || getTxt(node, "DG")) || 0;
+                const amount = parseFloat(getTxt(node, "ThTien") || getTxt(node, "TT")) || 0;
+                const vat = getTxt(node, "TSuat");
+                const tchat = getTxt(node, "TChat");
+                if (name || amount > 0) items.push({ name, maSP, unit, qty, price, amount, vat, tchat });
             });
 
             allInvoices.push({
                 fileName: fileName,
                 rawContent: rawContent,
-                invoiceType: invoiceType,
-                templateCode: templateCode,
-                series: invoiceSeries,
+                date: getTxt(ttChung, "NLap") || getTxt(xml, "NGAY") || getTxt(xml, "InvoiceDate") || "---",
+                series: getTxt(ttChung, "KHHDon") || getTxt(xml, "KH") || getTxt(xml, "InvoiceSeries") || "",
+                khms: getTxt(ttChung, "KHMSHDon"),
                 number: number,
-                date: invoiceDate,
-                signDate: signDate,
-                sellerName: getTxt("NBan > Ten") || getTxt("NBan > DVTen") || getTxt("SellerName") || "",
                 sellerTax: sellerTax,
-                sellerAddr: getTxt("NBan > DChi") || "",
-                buyerName: getTxt("NMua > Ten") || getTxt("NMua > DVTen") || getTxt("BuyerName") || "",
-                buyerTax: getTxt("NMua > MST") || "",
-                buyerAddr: getTxt("NMua > DChi") || "",
-                buyerContact: getTxt("NMua > HTTThan") || getTxt("NMua > TNCongTrinh") || "",
-                totalBeforeTax: getTxt("TgTCThue") || "0",
-                vatAmount: getTxt("TgTThue") || "0",
+                sellerName: getTxt(nBan, "Ten") || getTxt(nBan, "DVTen") || getTxt(xml, "SellerName") || "Chưa rõ tên",
+                sellerAddr: getTxt(nBan, "DChi") || "",
+                buyerName: getTxt(nMua, "Ten") || getTxt(nMua, "DVTen") || getTxt(xml, "BuyerName") || "",
+                buyerTax: getTxt(nMua, "MST") || "",
+                buyerAddr: getTxt(nMua, "DChi") || "",
+                buyerPerson: buyerPerson,
+                totalBeforeTax: getTxt(xml, "TgTCThue") || "0",
+                vatAmount: getTxt(xml, "TgTThue") || "0",
                 totalAmount: totalAmount,
-                totalText: getTxt("TgTTTBChu") || "",
-                status: "Gốc",
+                totalText: getTxt(xml, "TgTTTBChu") || "",
                 items: items
             });
         } catch(e) {}
@@ -286,7 +295,7 @@
                 <thead>
                     <tr>
                         <th style="width: 40px;" class="text-center">STT</th>
-                        <th>Tên Tên Hàng Hóa, Dịch Vụ</th>
+                        <th>Tên Hàng Hóa, Dịch Vụ</th>
                         <th style="width: 70px;" class="text-center">ĐVT</th>
                         <th style="width: 70px;" class="text-center">S.Lượng</th>
                         <th style="width: 110px;" class="text-right">Đơn Giá</th>
@@ -337,112 +346,135 @@
         el.innerHTML = msg;
     }
 
-    // Xuất Excel đúng 100% cấu trúc 2 bảng tiêu đề + 29 cột mẫu
+    // Hàm xuất dữ liệu ra file Excel chuẩn 35 cột thuế
     function exportToExcel() {
         if (!allInvoices || allInvoices.length === 0) {
             alert("Chưa có dữ liệu hóa đơn để xuất Excel!");
             return;
         }
 
-        const excelData = [];
-
-        // Hàng 1: Dòng ghi chú thời gian
-        excelData.push(["Từ ngày ... đến ..."]);
-        // Hàng 2: Trống
-        excelData.push([]);
-        // Hàng 3: Tiêu đề phân nhóm
-        excelData.push([
-            "THÔNG TIN HÓA ĐƠN", "", "", "", "", "",
-            "THÔNG TIN BÊN BÁN", "", "",
-            "THÔNG TIN BÊN MUA", "", "", "",
-            "HÀNG HÓA / DỊCH VỤ", "", "", "", "", "", "", "", "", "", "", "", "", "", "",
-            "TRẠNG THÁI"
-        ]);
-        // Hàng 4: Tiêu đề 29 cột chuẩn
-        excelData.push([
-            "Loại hoá đơn", "Ký hiệu mẫu số", "Số hóa đơn", "Ký hiệu", "Ngày hóa đơn", "Ngày ký hóa đơn",
-            "Tên đơn vị bán", "Mã số thuế bên bán", "Địa chỉ bên bán",
-            "Tên đơn vị mua", "Mã số thuế mua", "Địa chỉ mua", "Tên người mua",
-            "Tính chất", "Tên hàng hóa/dịch vụ", "Mã SP", "ĐVT", "Số lượng", "Đơn giá", "Chiết khấu",
-            "Giá trị chưa thuế", "Thuế suất", "Tiền thuế", "Tổng giảm trừ ko chịu thuế",
-            "Tổng tiền phí", "Tổng CKTM", "Tổng giảm trừ khác", "Giá trị thanh toán", "Trạng thái HD"
-        ]);
-
-        // Hàng 5 trở đi: Dữ liệu hóa đơn
-        allInvoices.forEach((inv) => {
+        let allRows = [];
+        allInvoices.forEach(inv => {
             if (inv.items && inv.items.length > 0) {
-                inv.items.forEach((item) => {
-                    excelData.push([
-                        inv.invoiceType,
-                        inv.templateCode,
-                        inv.number,
-                        inv.series,
-                        inv.date,
-                        inv.signDate,
-                        inv.sellerName,
-                        inv.sellerTax,
-                        inv.sellerAddr,
-                        inv.buyerName,
-                        inv.buyerTax,
-                        inv.buyerAddr,
-                        inv.buyerContact,
-                        item.tc || "1",
-                        item.name,
-                        item.code || null,
-                        item.unit || null,
-                        Number(item.qty) || 0,
-                        Number(item.price) || 0,
-                        Number(item.discount) || 0,
-                        Number(item.amount) || 0,
-                        item.vat || "8%",
-                        Number(item.vatAmt) || 0,
-                        null, null, null, null,
-                        Number(inv.totalAmount) || 0,
-                        inv.status || "Gốc"
-                    ]);
+                inv.items.forEach(item => {
+                    allRows.push({
+                        "Loại hoá đơn": "Đầu vào",
+                        "Ký hiệu mẫu số": inv.khms,
+                        "Số hóa đơn": inv.number,
+                        "Ký hiệu": inv.series,
+                        "Ngày hóa đơn": inv.date,
+                        "Ngày ký hóa đơn": inv.date,
+                        "Tên đơn vị bán": inv.sellerName,
+                        "Mã số thuế bên bán": inv.sellerTax,
+                        "Địa chỉ bên bán": inv.sellerAddr,
+                        "Tên đơn vị mua": inv.buyerName,
+                        "Mã số thuế mua": inv.buyerTax,
+                        "Địa chỉ mua": inv.buyerAddr,
+                        "Tên người mua": inv.buyerPerson,
+                        "Tính chất": item.tchat || "",
+                        "Tên hàng hóa/dịch vụ": item.name,
+                        "Mã SP": item.maSP || "",
+                        "ĐVT": item.unit,
+                        "Số lượng": item.qty,
+                        "Đơn giá": item.price,
+                        "Chiết khấu": 0,
+                        "Giá trị chưa thuế": item.amount,
+                        "Thuế suất": item.vat,
+                        "Tiền thuế": Number(inv.vatAmount) || 0,
+                        "Tổng giảm trừ ko chịu thuế": "",
+                        "Tổng tiền phí": "",
+                        "Tổng CKTM": "",
+                        "Tổng giảm trừ khác": "",
+                        "Giá trị thanh toán": item.amount + (Number(inv.vatAmount) || 0),
+                        "Trạng thái HD": "Hóa đơn mới",
+                        "Kết quả kiểm tra": "Đã cấp mã hóa đơn",
+                        "Loại liên quan": "",
+                        "Số HĐ liên quan": "",
+                        "Ký hiệu HĐ liên quan": "",
+                        "Ngày HĐ liên quan": "",
+                        "Ghi chú liên quan": ""
+                    });
                 });
-            } else {
-                excelData.push([
-                    inv.invoiceType,
-                    inv.templateCode,
-                    inv.number,
-                    inv.series,
-                    inv.date,
-                    inv.signDate,
-                    inv.sellerName,
-                    inv.sellerTax,
-                    inv.sellerAddr,
-                    inv.buyerName,
-                    inv.buyerTax,
-                    inv.buyerAddr,
-                    inv.buyerContact,
-                    "1", "", null, null, 0, 0, 0,
-                    Number(inv.totalBeforeTax) || 0,
-                    "8%",
-                    Number(inv.vatAmount) || 0,
-                    null, null, null, null,
-                    Number(inv.totalAmount) || 0,
-                    inv.status || "Gốc"
-                ]);
             }
         });
 
-        const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+        let activeRows = [];
+        let replacedRows = [];
+        allRows.forEach(row => {
+            let st = String(row["Trạng thái HD"]).toLowerCase();
+            if (st.includes("thay thế") || st.includes("điều chỉnh")) {
+                replacedRows.push(row);
+            } else {
+                activeRows.push(row);
+            }
+        });
+        if (replacedRows.length === 0 && activeRows.length > 0) {
+            activeRows = allRows;
+        }
 
-        // Thiết lập gộp ô (Merge Cells) dòng 3 tiêu đề nhóm chuẩn 100%
-        worksheet['!merges'] = [
-            { s: { r: 2, c: 0 }, e: { r: 2, c: 5 } },   // THÔNG TIN HÓA ĐƠN
-            { s: { r: 2, c: 6 }, e: { r: 2, c: 8 } },   // THÔNG TIN BÊN BÁN
-            { s: { r: 2, c: 9 }, e: { r: 2, c: 12 } },  // THÔNG TIN BÊN MUA
-            { s: { r: 2, c: 13 }, e: { r: 2, c: 27 } }, // HÀNG HÓA / DỊCH VỤ
-            { s: { r: 2, c: 28 }, e: { r: 2, c: 28 } }  // TRẠNG THÁI
-        ];
+        function buildSheetUniversal(dataRows) {
+            let wsData = [
+                ["Từ ngày ... đến ..."],
+                [],
+                []
+            ];
+            wsData[2] = [];
+            wsData[2][0] = "THÔNG TIN HÓA ĐƠN";
+            wsData[2][6] = "THÔNG TIN BÊN BÁN";
+            wsData[2][9] = "THÔNG TIN BÊN MUA";
+            wsData[2][13] = "HÀNG HÓA / DỊCH VỤ";
+            wsData[2][28] = "TRẠNG THÁI";
+            wsData[2][30] = "HÓA ĐƠN LIÊN QUAN";
 
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Báo cáo hóa đơn");
+            let cols = [
+                "Loại hoá đơn", "Ký hiệu mẫu số", "Số hóa đơn", "Ký hiệu", "Ngày hóa đơn", "Ngày ký hóa đơn",
+                "Tên đơn vị bán", "Mã số thuế bên bán", "Địa chỉ bên bán",
+                "Tên đơn vị mua", "Mã số thuế mua", "Địa chỉ mua", "Tên người mua",
+                "Tính chất", "Tên hàng hóa/dịch vụ", "Mã SP", "ĐVT", "Số lượng", "Đơn giá", "Chiết khấu",
+                "Giá trị chưa thuế", "Thuế suất", "Tiền thuế",
+                "Tổng giảm trừ ko chịu thuế", "Tổng tiền phí", "Tổng CKTM", "Tổng giảm trừ khác", "Giá trị thanh toán",
+                "Trạng thái HD", "Kết quả kiểm tra",
+                "Loại liên quan", "Số HĐ liên quan", "Ký hiệu HĐ liên quan", "Ngày HĐ liên quan", "Ghi chú liên quan"
+            ];
+            wsData.push(cols);
+
+            dataRows.forEach(item => {
+                let r = new Array(35).fill("");
+                cols.forEach((colName, idx) => { r[idx] = item[colName] !== undefined ? item[colName] : ""; });
+                wsData.push(r);
+            });
+
+            let ws = XLSX.utils.aoa_to_sheet(wsData);
+            let colWidths = new Array(35).fill(12);
+            wsData.forEach(row => {
+                if (Array.isArray(row)) {
+                    row.forEach((cellVal, colIdx) => {
+                        let len = cellVal ? String(cellVal).length : 10;
+                        if (len > colWidths[colIdx]) colWidths[colIdx] = Math.min(len + 3, 45);
+                    });
+                }
+            });
+            ws['!cols'] = colWidths.map(w => ({ wch: w }));
+            ws['!merges'] = [
+                { s: { r: 2, c: 0 }, e: { r: 2, c: 5 } },
+                { s: { r: 2, c: 6 }, e: { r: 2, c: 8 } },
+                { s: { r: 2, c: 9 }, e: { r: 2, c: 12 } },
+                { s: { r: 2, c: 13 }, e: { r: 2, c: 27 } },
+                { s: { r: 2, c: 28 }, e: { r: 2, c: 29 } },
+                { s: { r: 2, c: 30 }, e: { r: 2, c: 34 } }
+            ];
+            return ws;
+        }
+
+        let ws1 = buildSheetUniversal(activeRows);
+        let ws2 = buildSheetUniversal(replacedRows.length > 0 ? replacedRows : []);
+
+        let wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws1, "Báo cáo hóa đơn");
+        XLSX.utils.book_append_sheet(wb, ws2, "Hóa đơn thay thế-điều chỉnh");
 
         const today = new Date().toISOString().split('T')[0];
-        XLSX.writeFile(workbook, `Hoa_don_audit_all_in_one_${today}.xlsx`);
+        XLSX.writeFile(wb, `Hoa_don_audit_all_in_one_${today}.xlsx`);
     }
 </script>
 
