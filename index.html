@@ -8,7 +8,7 @@
     <style>
         * { box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; color: #333; }
-        .container { max-width: 1100px; margin: 0 auto; }
+        .container { max-width: 1200px; margin: 0 auto; }
         .card { background: #fff; padding: 24px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 20px; }
         .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e8e8e8; padding-bottom: 15px; margin-bottom: 20px; }
         h2 { margin: 0; color: #0050b3; font-size: 22px; }
@@ -27,6 +27,20 @@
         .text-center { text-align: center; }
         .text-right { text-align: right; }
         .badge-tax { color: #1890ff; font-weight: bold; background: #e6f7ff; padding: 3px 8px; border-radius: 4px; }
+        
+        .btn-action { border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500; margin-right: 4px; transition: 0.2s; }
+        .btn-view { background: #1890ff; color: white; }
+        .btn-view:hover { background: #40a9ff; }
+        .btn-dl { background: #fa8c16; color: white; }
+        .btn-dl:hover { background: #ffa940; }
+
+        /* Modal Popup Xem Hóa Đơn */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
+        .modal-content { background: #fff; width: 90%; max-width: 800px; max-height: 85vh; border-radius: 8px; padding: 20px; overflow-y: auto; position: relative; }
+        .close-btn { position: absolute; right: 15px; top: 15px; font-size: 22px; cursor: pointer; font-weight: bold; color: #999; }
+        .close-btn:hover { color: #333; }
+        .invoice-details table { margin-top: 15px; }
+        .invoice-header-info { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; background: #f9f9f9; padding: 15px; border-radius: 6px; margin-bottom: 15px; }
     </style>
 </head>
 <body>
@@ -50,17 +64,29 @@
             <thead>
                 <tr>
                     <th style="width: 50px;" class="text-center">STT</th>
-                    <th style="width: 110px;">Ngày Lập</th>
-                    <th style="width: 130px;">Số Hóa Đơn</th>
-                    <th style="width: 140px;">MST Bán</th>
+                    <th style="width: 100px;">Ngày Lập</th>
+                    <th style="width: 140px;">Số Hóa Đơn</th>
+                    <th style="width: 130px;">MST Bán</th>
                     <th>Đơn Vị Bán</th>
-                    <th style="width: 150px;" class="text-right">Tổng Tiền (VNĐ)</th>
+                    <th style="width: 130px;" class="text-right">Tổng Tiền (VNĐ)</th>
+                    <th style="width: 150px;" class="text-center">Thao Tác</th>
                 </tr>
             </thead>
             <tbody id="invoiceList">
-                <tr><td colspan="6" class="text-center" style="color:#999; padding: 30px;">Đang tải danh sách...</td></tr>
+                <tr><td colspan="7" class="text-center" style="color:#999; padding: 30px;">Đang tải danh sách...</td></tr>
             </tbody>
         </table>
+    </div>
+</div>
+
+<!-- Modal Xem Chi Tiết Hóa Đơn -->
+<div id="viewModal" class="modal">
+    <div class="modal-content">
+        <span class="close-btn" onclick="closeModal()">&times;</span>
+        <h3 style="margin-top:0; color:#0050b3;">📄 Chi Tiết Hóa Đơn Điện Tử</h3>
+        <div id="modalBody" class="invoice-details">
+            <!-- Dữ liệu chi tiết hóa đơn sẽ được điền vào đây -->
+        </div>
     </div>
 </div>
 
@@ -108,7 +134,7 @@
                     if (file.name.endsWith('.xml')) {
                         const contentRes = await fetch(file.download_url);
                         const text = await contentRes.text();
-                        parseAndAddXml(text);
+                        parseAndAddXml(text, file.name, text);
                     } else if (file.name.endsWith('.zip')) {
                         const contentRes = await fetch(file.download_url);
                         const blob = await contentRes.blob();
@@ -116,12 +142,15 @@
                         for (let relativePath in zip.files) {
                             if (relativePath.endsWith('.xml')) {
                                 const xmlText = await zip.files[relativePath].async('string');
-                                parseAndAddXml(xmlText);
+                                parseAndAddXml(xmlText, file.name, xmlText);
                             }
                         }
                     }
                 } catch (e) {}
             }));
+
+            // Sắp xếp ngày giảm dần
+            allInvoices.sort((a, b) => new Date(b.date) - new Date(a.date));
 
             setStatus("success", `✅ Đã tải thành công ${allInvoices.length} hóa đơn từ thư mục DATA!`);
             renderTable(allInvoices);
@@ -130,21 +159,38 @@
         }
     }
 
-    function parseAndAddXml(xmlText) {
+    function parseAndAddXml(xmlText, fileName, rawContent) {
         try {
             const xml = new DOMParser().parseFromString(xmlText, "text/xml");
             const getTxt = (tag) => { const el = xml.querySelector(tag); return el ? el.textContent.trim() : ""; };
+            
             const sellerTax = getTxt("NBan > MST") || getTxt("MSTNBan") || getTxt("SellerTaxCode");
             const number = getTxt("SHDon") || getTxt("SOHDON") || getTxt("InvoiceNumber");
             if (!sellerTax || !number) return;
 
+            // Đọc danh sách hàng hóa
+            const items = [];
+            const itemNodes = xml.querySelectorAll("HHDVu, HHDang");
+            itemNodes.forEach(node => {
+                const name = node.querySelector("THDVu, TTen")?.textContent || "";
+                const qty = node.querySelector("SLuong, SL")?.textContent || "0";
+                const price = node.querySelector("DGia, DG")?.textContent || "0";
+                const amount = node.querySelector("ThTien, TT")?.textContent || "0";
+                if(name) items.push({ name, qty, price, amount });
+            });
+
             allInvoices.push({
+                fileName: fileName,
+                rawContent: rawContent,
                 date: getTxt("NLap") || getTxt("NGAY") || getTxt("InvoiceDate") || "---",
                 series: getTxt("KHHDon") || getTxt("KH") || getTxt("InvoiceSeries") || "",
                 number: number,
                 sellerTax: sellerTax,
                 sellerName: getTxt("NBan > Ten") || getTxt("NBan > DVTen") || getTxt("SellerName") || "Chưa rõ tên",
-                totalAmount: getTxt("TgTTien") || getTxt("TONGTIEN") || getTxt("TotalAmount") || "0"
+                buyerName: getTxt("NMua > Ten") || getTxt("NMua > DVTen") || getTxt("BuyerName") || "",
+                totalAmount: getTxt("TgTTien") || getTxt("TONGTIEN") || getTxt("TotalAmount") || "0",
+                vatAmount: getTxt("TgTThue") || getTxt("VAT") || "0",
+                items: items
             });
         } catch(e) {}
     }
@@ -153,7 +199,7 @@
         const tbody = document.getElementById("invoiceList");
         tbody.innerHTML = "";
         if (!list.length) {
-            tbody.innerHTML = `<tr><td colspan="6" class="text-center" style="color:#999; padding: 30px;">Chưa có dữ liệu hóa đơn.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center" style="color:#999; padding: 30px;">Chưa có dữ liệu hóa đơn.</td></tr>`;
             return;
         }
         const fmt = (v) => v ? Number(v).toLocaleString("vi-VN") : "0";
@@ -166,9 +212,80 @@
                     <td><span class="badge-tax">${inv.sellerTax}</span></td>
                     <td><b>${inv.sellerName}</b></td>
                     <td class="text-right"><b style="color: #0050b3;">${fmt(inv.totalAmount)}</b></td>
+                    <td class="text-center">
+                        <button class="btn-action btn-view" onclick="viewInvoice(${i})">👁️ Xem</button>
+                        <button class="btn-action btn-dl" onclick="downloadXml(${i})">📥 Tải</button>
+                    </td>
                 </tr>
             `;
         });
+    }
+
+    function viewInvoice(index) {
+        const inv = allInvoices[index];
+        const fmt = (v) => v ? Number(v).toLocaleString("vi-VN") : "0";
+        
+        let itemsHtml = "";
+        inv.items.forEach((item, idx) => {
+            itemsHtml += `
+                <tr>
+                    <td class="text-center">${idx + 1}</td>
+                    <td>${item.name}</td>
+                    <td class="text-center">${fmt(item.qty)}</td>
+                    <td class="text-right">${fmt(item.price)}</td>
+                    <td class="text-right">${fmt(item.amount)}</td>
+                </tr>
+            `;
+        });
+
+        document.getElementById("modalBody").innerHTML = `
+            <div class="invoice-header-info">
+                <div>
+                    <p><b>Đơn Vị Bán:</b> ${inv.sellerName}</p>
+                    <p><b>Mã Số Thuế:</b> ${inv.sellerTax}</p>
+                </div>
+                <div>
+                    <p><b>Số Hóa Đơn:</b> ${inv.series ? inv.series + '-' : ''}${inv.number}</p>
+                    <p><b>Ngày Lập:</b> ${inv.date}</p>
+                    ${inv.buyerName ? `<p><b>Đơn Vị Mua:</b> ${inv.buyerName}</p>` : ''}
+                </div>
+            </div>
+
+            <h4 style="margin-bottom: 8px;">Danh Sách Hàng Hóa / Dịch Vụ:</h4>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 40px;" class="text-center">STT</th>
+                        <th>Tên Hàng Hóa / Dịch Vụ</th>
+                        <th style="width: 80px;" class="text-center">Số Lượng</th>
+                        <th style="width: 110px;" class="text-right">Đơn Giá</th>
+                        <th style="width: 120px;" class="text-right">Thành Tiền</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${itemsHtml || '<tr><td colspan="5" class="text-center">Không có chi tiết mặt hàng</td></tr>'}
+                </tbody>
+            </table>
+
+            <div style="text-align: right; margin-top: 15px; font-size: 16px;">
+                <p>Tiền Thuế VAT: <b>${fmt(inv.vatAmount)} VNĐ</b></p>
+                <p style="color: #0050b3; font-size: 18px;"><b>Tổng Tiền Thanh Toán: ${fmt(inv.totalAmount)} VNĐ</b></p>
+            </div>
+        `;
+        document.getElementById("viewModal").style.display = "flex";
+    }
+
+    function closeModal() {
+        document.getElementById("viewModal").style.display = "none";
+    }
+
+    function downloadXml(index) {
+        const inv = allInvoices[index];
+        const blob = new Blob([inv.rawContent], { type: "text/xml" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `${inv.sellerTax}_${inv.number}.xml`;
+        a.click();
     }
 
     function filterTable() {
