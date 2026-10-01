@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tra Cứu Hóa Đơn - Galaxy Studio</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         * { box-sizing: border-box; }
@@ -36,6 +37,7 @@
         .btn-view:hover { background: #40a9ff; }
         .btn-dl { background: #fa8c16; color: white; }
         .btn-dl:hover { background: #ffa940; }
+        .btn-xml { background: #8c8c8c; color: white; }
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
         .modal-content { background: #fff; width: 90%; max-width: 850px; max-height: 90vh; border-radius: 8px; padding: 24px; overflow-y: auto; position: relative; }
         .close-btn { position: absolute; right: 20px; top: 15px; font-size: 24px; cursor: pointer; font-weight: bold; color: #999; }
@@ -78,7 +80,7 @@
                     <th style="width: 130px;">MST Bán</th>
                     <th>Đơn Vị Bán</th>
                     <th style="width: 140px;" class="text-right">Tổng Tiền (VNĐ)</th>
-                    <th style="width: 150px;" class="text-center">Thao Tác</th>
+                    <th style="width: 190px;" class="text-center">Thao Tác</th>
                 </tr>
             </thead>
             <tbody id="invoiceList">
@@ -324,7 +326,8 @@
                 <td class="text-right"><b style="color: #0050b3;">${fmt(inv.totalAmount)}</b></td>
                 <td class="text-center">
                     <button class="btn-action btn-view" onclick="viewInvoice(${idx})">👁️ Xem</button>
-                    <button class="btn-action btn-dl" onclick="downloadXml(${idx})">📥 Tải</button>
+                    <button class="btn-action btn-dl" onclick="downloadPdf(${idx})">📄 PDF</button>
+                    <button class="btn-action btn-xml" onclick="downloadXml(${idx})">XML</button>
                 </td></tr>`);
         });
         tbody.innerHTML = html.join("");
@@ -349,6 +352,7 @@
                     <td class="text-center">${fmt(item.qty)}</td>
                     <td class="text-right">${fmt(item.price)}</td>
                     <td class="text-right">${fmt(item.amount)}</td>
+                    <td class="text-center">${item.vat || ""}</td>
                 </tr>
             `;
         });
@@ -364,7 +368,9 @@
                     <p><b>Mẫu số - Ký hiệu:</b> ${inv.templateCode} - ${inv.series}</p>
                     <p><b>Số Hóa Đơn:</b> <b style="color:#cf1322; font-size:16px;">${inv.number}</b></p>
                     <p><b>Ngày Lập:</b> ${inv.date}</p>
-                    ${inv.buyerName ? `<p><b>Khách Hàng:</b> ${inv.buyerName}</p>` : ''}
+                    <p><b>Người mua hàng:</b> ${inv.buyerContact || ""}</p>
+                    ${inv.buyerName ? `<p><b>Đơn vị mua:</b> ${inv.buyerName}</p>` : ''}
+                    ${inv.buyerTax ? `<p><b>MST người mua:</b> ${inv.buyerTax}</p>` : ''}
                 </div>
             </div>
 
@@ -378,10 +384,11 @@
                         <th style="width: 70px;" class="text-center">S.Lượng</th>
                         <th style="width: 110px;" class="text-right">Đơn Giá</th>
                         <th style="width: 120px;" class="text-right">Thành Tiền</th>
+                        <th style="width: 80px;" class="text-center">Thuế suất</th>
                     </tr>
                 </thead>
                 <tbody>
-                    ${itemsHtml || '<tr><td colspan="6" class="text-center">Không có chi tiết dòng hàng</td></tr>'}
+                    ${itemsHtml || '<tr><td colspan="7" class="text-center">Không có chi tiết dòng hàng</td></tr>'}
                 </tbody>
             </table>
 
@@ -397,6 +404,61 @@
 
     function closeModal() {
         document.getElementById("viewModal").style.display = "none";
+    }
+
+    function esc(v) { return String(v == null ? "" : v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+    function pdfHtml(inv) {
+        const f = (v) => (v === "" || v == null || isNaN(Number(v))) ? "" : Number(v).toLocaleString("vi-VN");
+        const d = inv.date ? inv.date.split("-").reverse().join("/") : "";
+        const rows = inv.items.map((it, i) => `<tr>
+            <td style="text-align:center">${i + 1}</td><td>${esc(it.name)}</td><td style="text-align:center">${esc(it.unit)}</td>
+            <td style="text-align:right">${f(it.qty)}</td><td style="text-align:right">${f(it.price)}</td>
+            <td style="text-align:right">${f(it.amount)}</td><td style="text-align:center">${esc(it.vat)}</td></tr>`).join("");
+        const td = "border:1px solid #999;padding:5px 6px;";
+        return `<div style="font-family:Arial,sans-serif;font-size:12px;color:#000;padding:10px;width:100%">
+            <style>.pt td,.pt th{${td}}.pt th{background:#eee}</style>
+            <div style="text-align:center">
+                <div style="font-size:20px;font-weight:bold">${esc(inv.invoiceType)}</div>
+                <div>Ngày ${esc(d)}</div>
+                <div>Mẫu số: <b>${esc(inv.templateCode)}</b> &nbsp; Ký hiệu: <b>${esc(inv.series)}</b> &nbsp; Số: <b style="color:#c00">${esc(inv.number)}</b></div>
+            </div>
+            <hr>
+            <div><b>Đơn vị bán hàng:</b> ${esc(inv.sellerName)}</div>
+            <div><b>Mã số thuế:</b> ${esc(inv.sellerTax)}</div>
+            <div><b>Địa chỉ:</b> ${esc(inv.sellerAddr)}</div>
+            <hr>
+            <div><b>Họ tên người mua hàng:</b> ${esc(inv.buyerContact)}</div>
+            <div><b>Tên đơn vị:</b> ${esc(inv.buyerName)}</div>
+            <div><b>Mã số thuế:</b> ${esc(inv.buyerTax)}</div>
+            <div><b>Địa chỉ:</b> ${esc(inv.buyerAddr)}</div>
+            <table class="pt" style="width:100%;border-collapse:collapse;margin-top:10px">
+                <thead><tr><th>STT</th><th>Tên hàng hóa, dịch vụ</th><th>ĐVT</th><th>Số lượng</th><th>Đơn giá</th><th>Thành tiền</th><th>Thuế suất</th></tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+            <div style="text-align:right;margin-top:10px;line-height:1.7">
+                Cộng tiền hàng: <b>${f(inv.totalBeforeTax)}</b><br>
+                Tiền thuế GTGT: <b>${f(inv.vatAmount)}</b><br>
+                <span style="font-size:14px">Tổng tiền thanh toán: <b>${f(inv.totalAmount)} VNĐ</b></span>
+            </div>
+            ${inv.totalText ? `<div><i>Số tiền viết bằng chữ: ${esc(inv.totalText)}</i></div>` : ""}
+            <div style="margin-top:14px;font-size:10px;color:#666">Bản thể hiện được tạo từ file hóa đơn điện tử XML.</div>
+        </div>`;
+    }
+
+    function downloadPdf(index) {
+        const inv = currentList[index];
+        const wrap = document.createElement("div");
+        wrap.style.cssText = "position:fixed;left:-10000px;top:0;width:794px;background:#fff;";
+        wrap.innerHTML = pdfHtml(inv);
+        document.body.appendChild(wrap);
+        html2pdf().set({
+            margin: 8,
+            filename: `HoaDon_${inv.series}-${inv.number}_${inv.sellerTax}.pdf`,
+            image: { type: "jpeg", quality: 0.95 },
+            html2canvas: { scale: 2 },
+            jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }
+        }).from(wrap.firstElementChild).save().catch(e => alert("Lỗi tạo PDF: " + e.message)).finally(() => wrap.remove());
     }
 
     async function downloadXml(index) {
