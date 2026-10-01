@@ -52,7 +52,8 @@
             <h2>🏢 Tra Cứu Hóa Đơn Nội Bộ (Galaxy Studio)</h2>
             <div class="btn-group">
                 <button class="btn-export" onclick="exportToExcel()">📊 Xuất Excel Tổng</button>
-                <button class="btn-reload" onclick="loadInvoicesFromGitHub()">🔄 Tải Lại Dữ Liệu</button>
+                <button class="btn-reload" onclick="loadInvoicesFromGitHub()">🔄 Cập Nhật Dữ Liệu Mới</button>
+                <button class="btn-action btn-dl" style="padding:10px 14px" onclick="clearCache()">🗑️ Xóa Cache</button>
             </div>
         </div>
 
@@ -61,7 +62,11 @@
         </div>
 
         <div class="search-container">
-            <input type="text" id="searchInput" class="search-input" placeholder="🔍 Tìm theo Mã số thuế, Tên nhà cung cấp, Số hóa đơn..." oninput="filterTable()">
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+                <input type="text" id="searchInput" class="search-input" style="flex:1;min-width:260px" placeholder="🔍 Tìm theo Mã số thuế, Tên nhà cung cấp, Số hóa đơn..." oninput="debounceFilter()">
+                <input type="date" id="dateFrom" class="search-input" style="width:160px" onchange="filterTable()" title="Từ ngày">
+                <input type="date" id="dateTo" class="search-input" style="width:160px" onchange="filterTable()" title="Đến ngày">
+            </div>
         </div>
 
         <table>
@@ -80,6 +85,7 @@
                 <tr><td colspan="7" class="text-center" style="color:#999; padding: 30px;">Đang tải danh sách...</td></tr>
             </tbody>
         </table>
+        <div id="pager" style="display:flex;gap:10px;align-items:center;justify-content:center;margin-top:15px"></div>
     </div>
 </div>
 
@@ -95,72 +101,127 @@
     const pathSegments = window.location.pathname.split('/').filter(Boolean);
     const repoName = pathSegments.length > 0 ? pathSegments[0] : '';
     const ownerName = window.location.hostname.split('.')[0];
-    let allInvoices = [];
-    let invoiceKeys = new Set();
+    let allInvoices = [];      // toàn bộ hóa đơn (đã gộp từ cache)
+    let currentList = [];      // danh sách đang hiển thị (sau lọc)
+    let page = 0;
+    const PAGE_SIZE = 100;
+    const CACHE_VERSION = 1;   // tăng số này nếu sửa cách đọc XML để buộc đọc lại
+    const CONCURRENCY = 8;
+
+    // ---------- IndexedDB cache: mỗi file DATA lưu 1 bản ghi {path, sha, v, invoices} ----------
+    function openDB() {
+        return new Promise((res, rej) => {
+            const r = indexedDB.open("invoiceCache", 1);
+            r.onupgradeneeded = () => r.result.createObjectStore("files", { keyPath: "path" });
+            r.onsuccess = () => res(r.result);
+            r.onerror = () => rej(r.error);
+        });
+    }
+    const dbReq = (db, mode, fn) => new Promise((res, rej) => {
+        const st = db.transaction("files", mode).objectStore("files");
+        const rq = fn(st); rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error);
+    });
+    const dbAll = (db) => dbReq(db, "readonly", st => st.getAll());
+    const dbPut = (db, rec) => dbReq(db, "readwrite", st => st.put(rec));
+    const dbDel = (db, path) => dbReq(db, "readwrite", st => st.delete(path));
+
+    async function clearCache() {
+        if (!confirm("Xóa bộ nhớ đệm? Lần sau trang sẽ tải lại toàn bộ file.")) return;
+        try { const db = await openDB(); await dbReq(db, "readwrite", st => st.clear()); } catch (e) {}
+        allInvoices = []; renderTable([]);
+        loadInvoicesFromGitHub();
+    }
 
     window.addEventListener('DOMContentLoaded', () => { loadInvoicesFromGitHub(); });
 
+    function rebuild(cached) {
+        const seen = new Set(), out = [];
+        cached.forEach(rec => rec.invoices.forEach(inv => {
+            const k = `${inv.sellerTax}|${inv.series}|${inv.number}`;
+            if (!seen.has(k)) { seen.add(k); out.push(inv); }
+        }));
+        out.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+        allInvoices = out;
+        filterTable(true);
+    }
+
+    async function fetchAndParse(f) {
+        const url = encodeURI(f.path); // cùng domain GitHub Pages: nhanh, không bị giới hạn API
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(res.status);
+        const list = [];
+        if (/\.xml$/i.test(f.path)) {
+            const inv = parseXml(await res.text(), f.path, null);
+            if (inv) list.push(inv);
+        } else {
+            const zip = await JSZip.loadAsync(await res.blob());
+            for (const name in zip.files) {
+                if (!/\.xml$/i.test(name)) continue;
+                const inv = parseXml(await zip.files[name].async("string"), f.path, name);
+                if (inv) list.push(inv);
+            }
+        }
+        return list;
+    }
+
     async function loadInvoicesFromGitHub() {
-        setStatus("info", "⏳ Đang quét danh sách file trong thư mục DATA...");
         if (!ownerName || !repoName) {
             setStatus("error", "⚠️ Hãy chạy trang web trên đường dẫn GitHub Pages.");
             return;
         }
-
-        const apiUrl = `https://api.github.com/repos/${ownerName}/${repoName}/contents/DATA`;
+        let db = null;
+        const cached = new Map();
+        try {
+            db = await openDB();
+            (await dbAll(db)).forEach(r => { if (r.v === CACHE_VERSION) cached.set(r.path, r); });
+        } catch (e) {}
+        if (cached.size) { rebuild(cached); setStatus("info", `⚡ Đã nạp ${allInvoices.length} hóa đơn từ bộ nhớ đệm, đang kiểm tra file mới...`); }
+        else setStatus("info", "⏳ Đang quét danh sách file trong thư mục DATA...");
 
         try {
-            const res = await fetch(apiUrl);
-            if (!res.ok) {
-                if (res.status === 404) {
-                    setStatus("error", "⚠️ Chưa thấy thư mục 'DATA'. Bạn hãy tạo thư mục tên 'DATA' trên máy và chép file XML/ZIP vào nhé.");
-                } else {
-                    setStatus("error", `❌ Lỗi lấy dữ liệu (${res.status}).`);
-                }
-                renderTable([]);
-                return;
-            }
+            // 1 request duy nhất lấy toàn bộ cây thư mục (kể cả thư mục con, >1000 file)
+            const res = await fetch(`https://api.github.com/repos/${ownerName}/${repoName}/git/trees/HEAD?recursive=1`);
+            if (!res.ok) throw new Error(res.status === 403 ? "GitHub giới hạn tốc độ, thử lại sau" : "mã lỗi " + res.status);
+            const tree = await res.json();
+            const files = tree.tree.filter(t => t.type === "blob" && t.path.startsWith("DATA/") && /\.(xml|zip)$/i.test(t.path));
+            if (!files.length) { setStatus("info", "📁 Thư mục DATA hiện chưa có file hóa đơn XML/ZIP nào."); rebuild(new Map()); return; }
 
-            const files = await res.json();
-            const xmlOrZipFiles = files.filter(f => f.name.endsWith('.xml') || f.name.endsWith('.zip'));
+            const live = new Set(files.map(f => f.path));
+            for (const p of [...cached.keys()]) if (!live.has(p)) { cached.delete(p); if (db) dbDel(db, p).catch(() => {}); }
 
-            if (xmlOrZipFiles.length === 0) {
-                setStatus("info", "📁 Thư mục DATA hiện chưa có file hóa đơn XML/ZIP nào.");
-                renderTable([]);
-                return;
-            }
+            const todo = files.filter(f => !cached.has(f.path) || cached.get(f.path).sha !== f.sha);
+            const total = todo.length;
+            let done = 0, failed = 0;
+            if (total === 0) { rebuild(cached); setStatus("success", `✅ ${allInvoices.length} hóa đơn (không có file mới).`); return; }
 
-            allInvoices = [];
-            invoiceKeys = new Set();
-            await Promise.all(xmlOrZipFiles.map(async (file) => {
-                try {
-                    if (file.name.endsWith('.xml')) {
-                        const contentRes = await fetch(file.download_url);
-                        const text = await contentRes.text();
-                        parseAndAddXml(text, file.name, text);
-                    } else if (file.name.endsWith('.zip')) {
-                        const contentRes = await fetch(file.download_url);
-                        const blob = await contentRes.blob();
-                        const zip = await JSZip.loadAsync(blob);
-                        for (let relativePath in zip.files) {
-                            if (relativePath.endsWith('.xml')) {
-                                const xmlText = await zip.files[relativePath].async('string');
-                                parseAndAddXml(xmlText, file.name, xmlText);
-                            }
-                        }
+            const worker = async () => {
+                while (todo.length) {
+                    const f = todo.shift();
+                    try {
+                        const rec = { path: f.path, sha: f.sha, v: CACHE_VERSION, invoices: await fetchAndParse(f) };
+                        cached.set(f.path, rec);
+                        if (db) dbPut(db, rec).catch(() => {});
+                    } catch (e) { failed++; }
+                    done++;
+                    if (done % 25 === 0 || done === total) {
+                        rebuild(cached);
+                        setStatus("info", `⏳ Đang tải file mới ${done}/${total}... (${allInvoices.length} hóa đơn)`);
                     }
-                } catch (e) {}
-            }));
-
-            allInvoices.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
-            setStatus("success", `✅ Đã tải thành công ${allInvoices.length} hóa đơn từ thư mục DATA!`);
-            renderTable(allInvoices);
+                }
+            };
+            await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+            rebuild(cached);
+            setStatus(failed ? "error" : "success",
+                `✅ ${allInvoices.length} hóa đơn (mới tải ${total - failed} file)` + (failed ? ` — ⚠️ ${failed} file lỗi, bấm "Cập Nhật" để thử lại` : "") +
+                (tree.truncated ? " — ⚠️ danh sách file quá lớn, GitHub cắt bớt" : ""));
         } catch (err) {
-            setStatus("error", "❌ Lỗi kết nối: " + err.message);
+            setStatus(cached.size ? "success" : "error", cached.size
+                ? `⚠️ Không kết nối được GitHub (${err.message}), đang dùng ${allInvoices.length} hóa đơn trong bộ nhớ đệm.`
+                : "❌ Lỗi kết nối: " + err.message);
         }
     }
 
-    function parseAndAddXml(xmlText, fileName, rawContent) {
+    function parseXml(xmlText, path, entry) {
         try {
             const xml = new DOMParser().parseFromString(xmlText, "text/xml");
             // Nhận nhiều selector, trả về giá trị đầu tiên không rỗng
@@ -180,10 +241,6 @@
             const invoiceSeries = getTxt("KHHDon", "KH", "InvoiceSeries");
             const templateCode = getTxt("KHMSHDon") || (invoiceSeries ? "1" : "");
 
-            // Chống trùng: cùng MST bán + ký hiệu + số hóa đơn
-            const key = `${sellerTax}|${invoiceSeries}|${number}`;
-            if (invoiceKeys.has(key)) return;
-            invoiceKeys.add(key);
 
             const invoiceDate = d10(getTxt("NLap", "NGAY", "InvoiceDate"));
             const signDate = d10(getTxt("DSCKS > NBan SigningTime", "SigningTime", "NgayKy")) || invoiceDate;
@@ -211,9 +268,8 @@
                 });
             });
 
-            allInvoices.push({
-                fileName: fileName,
-                rawContent: rawContent,
+            return {
+                path: path, entry: entry,
                 invoiceType: getTxt("THDon") || "HÓA ĐƠN GIÁ TRỊ GIA TĂNG",
                 templateCode: templateCode,
                 series: invoiceSeries,
@@ -239,39 +295,48 @@
                 relDate: d10(getTxt("TTHDLQuan > NLHDCLQuan", "NLHDCLQuan")),
                 relNote: getTxt("TTHDLQuan > GChu", "GChu"),
                 items: items
-            });
+            };
         } catch(e) {}
     }
 
-    function renderTable(list) {
+    function renderTable(list, keepPage) {
+        currentList = list;
+        if (!keepPage) page = 0;
+        const pages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+        if (page >= pages) page = pages - 1;
         const tbody = document.getElementById("invoiceList");
-        tbody.innerHTML = "";
         if (!list.length) {
             tbody.innerHTML = `<tr><td colspan="7" class="text-center" style="color:#999; padding: 30px;">Chưa có dữ liệu hóa đơn.</td></tr>`;
+            document.getElementById("pager").innerHTML = "";
             return;
         }
         const fmt = (v) => v ? Number(v).toLocaleString("vi-VN") : "0";
-        list.forEach((inv, i) => {
-            const realIndex = allInvoices.indexOf(inv);
-            tbody.innerHTML += `
-                <tr>
-                    <td class="text-center">${i + 1}</td>
-                    <td>${inv.date}</td>
-                    <td><b>${inv.series ? inv.series + '-' : ''}${inv.number}</b></td>
-                    <td><span class="badge-tax">${inv.sellerTax}</span></td>
-                    <td><b>${inv.sellerName}</b></td>
-                    <td class="text-right"><b style="color: #0050b3;">${fmt(inv.totalAmount)}</b></td>
-                    <td class="text-center">
-                        <button class="btn-action btn-view" onclick="viewInvoice(${realIndex})">👁️ Xem</button>
-                        <button class="btn-action btn-dl" onclick="downloadXml(${realIndex})">📥 Tải</button>
-                    </td>
-                </tr>
-            `;
+        const start = page * PAGE_SIZE;
+        const html = [];
+        list.slice(start, start + PAGE_SIZE).forEach((inv, i) => {
+            const idx = start + i;
+            html.push(`<tr>
+                <td class="text-center">${idx + 1}</td>
+                <td>${inv.date}</td>
+                <td><b>${inv.series ? inv.series + '-' : ''}${inv.number}</b></td>
+                <td><span class="badge-tax">${inv.sellerTax}</span></td>
+                <td><b>${inv.sellerName}</b></td>
+                <td class="text-right"><b style="color: #0050b3;">${fmt(inv.totalAmount)}</b></td>
+                <td class="text-center">
+                    <button class="btn-action btn-view" onclick="viewInvoice(${idx})">👁️ Xem</button>
+                    <button class="btn-action btn-dl" onclick="downloadXml(${idx})">📥 Tải</button>
+                </td></tr>`);
         });
+        tbody.innerHTML = html.join("");
+        document.getElementById("pager").innerHTML =
+            `<button class="btn-action btn-view" ${page === 0 ? "disabled" : ""} onclick="goPage(${page - 1})">◀ Trước</button>
+             <span>Trang ${page + 1}/${pages} — ${list.length.toLocaleString("vi-VN")} hóa đơn</span>
+             <button class="btn-action btn-view" ${page >= pages - 1 ? "disabled" : ""} onclick="goPage(${page + 1})">Sau ▶</button>`;
     }
+    function goPage(p) { page = p; renderTable(currentList, true); }
 
     function viewInvoice(index) {
-        const inv = allInvoices[index];
+        const inv = currentList[index];
         const fmt = (v) => v ? Number(v).toLocaleString("vi-VN") : "0";
 
         let itemsHtml = "";
@@ -334,23 +399,31 @@
         document.getElementById("viewModal").style.display = "none";
     }
 
-    function downloadXml(index) {
-        const inv = allInvoices[index];
-        const blob = new Blob([inv.rawContent], { type: "text/xml" });
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = `${inv.sellerTax}_${inv.number}.xml`;
-        a.click();
+    async function downloadXml(index) {
+        const inv = currentList[index];
+        try {
+            const res = await fetch(encodeURI(inv.path));
+            if (!res.ok) throw new Error(res.status);
+            let content;
+            if (inv.entry) content = await (await JSZip.loadAsync(await res.blob())).files[inv.entry].async("string");
+            else content = await res.text();
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(new Blob([content], { type: "text/xml" }));
+            a.download = `${inv.sellerTax}_${inv.number}.xml`;
+            a.click();
+        } catch (e) { alert("Không tải được file gốc: " + e.message); }
     }
 
-    function filterTable() {
+    let filterTimer;
+    function debounceFilter() { clearTimeout(filterTimer); filterTimer = setTimeout(() => filterTable(), 250); }
+    function filterTable(keepPage) {
         const kw = document.getElementById("searchInput").value.toLowerCase();
+        const from = document.getElementById("dateFrom").value, to = document.getElementById("dateTo").value;
         const filtered = allInvoices.filter(inv =>
-            inv.sellerTax.toLowerCase().includes(kw) ||
-            inv.sellerName.toLowerCase().includes(kw) ||
-            inv.number.toLowerCase().includes(kw)
+            (!from || inv.date >= from) && (!to || inv.date <= to) &&
+            (!kw || inv.sellerTax.toLowerCase().includes(kw) || inv.sellerName.toLowerCase().includes(kw) || inv.number.toLowerCase().includes(kw))
         );
-        renderTable(filtered);
+        renderTable(filtered, keepPage === true);
     }
 
     function setStatus(type, msg) {
@@ -361,7 +434,7 @@
 
     // ================= XUẤT EXCEL: đúng form 35 cột (A:AI), 2 sheet =================
     function exportToExcel() {
-        if (!allInvoices || allInvoices.length === 0) {
+        if (!currentList || currentList.length === 0) {
             alert("Chưa có dữ liệu hóa đơn để xuất Excel!");
             return;
         }
@@ -370,7 +443,7 @@
         const txt = (v) => (v === "" || v == null) ? null : v;
         const fmtDate = (d) => d ? d.split("-").reverse().join("/") : "...";
 
-        const dates = allInvoices.map(i => i.date).filter(Boolean).sort();
+        const dates = currentList.map(i => i.date).filter(Boolean).sort();
         const rangeText = `Từ ngày ${fmtDate(dates[0])} đến ${fmtDate(dates[dates.length - 1])}`;
 
         const HEADER_GROUP = ["THÔNG TIN HÓA ĐƠN","","","","","","THÔNG TIN BÊN BÁN","","","THÔNG TIN BÊN MUA","","","",
@@ -442,8 +515,8 @@
             return ws;
         };
 
-        const normal = allInvoices.filter(i => !i.relType);
-        const related = allInvoices.filter(i => i.relType);
+        const normal = currentList.filter(i => !i.relType);
+        const related = currentList.filter(i => i.relType);
 
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, makeSheet(buildRows(normal)), "Báo cáo hóa đơn");
