@@ -203,6 +203,13 @@
         details.terms summary{cursor:pointer;font-weight:600;font-size:14px}
         .terms-box{max-height:240px;overflow:auto;margin-top:10px}
         tr.paid-row{opacity:.5}
+        .ctr-card{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:10px 0}
+        .ctr-card .files button{margin:4px 6px 0 0}
+        .ctr-form{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:10px 0}
+        .ctr-form label{font-size:12px;color:var(--muted);font-weight:600;display:block}
+        .ctr-form .search-input{padding:8px 10px;font-size:13px}
+        select.term-in{width:auto}
+        @media(max-width:760px){.ctr-form{grid-template-columns:1fr}}
     </style>
 </head>
 <body>
@@ -257,10 +264,8 @@
 
         <div class="filters2 reports-bar">
             <b style="font-size:13px;color:var(--muted)">📈 BÁO CÁO:</b>
-            <button class="chip" onclick="openReport('month')">Theo tháng</button>
             <button class="chip" onclick="openReport('seller')">Theo nhà cung cấp</button>
             <button class="chip" onclick="openReport('buyer')">Theo người mua / rạp</button>
-            <button class="chip" onclick="openReport('rate')">Theo thuế suất</button>
             <button class="chip" onclick="openReport('alert')">⚠️ Bất thường</button>
             <button class="chip" onclick="openDebt()">💳 Công nợ / Hạn thanh toán</button>
         </div>
@@ -321,8 +326,8 @@
     // ---------- IndexedDB cache: mỗi file DATA lưu 1 bản ghi {path, sha, v, invoices} ----------
     function openDB() {
         return new Promise((res, rej) => {
-            const r = indexedDB.open("invoiceCache", 1);
-            r.onupgradeneeded = () => r.result.createObjectStore("files", { keyPath: "path" });
+            const r = indexedDB.open("invoiceCache", 2);
+            r.onupgradeneeded = () => { const d = r.result; if (!d.objectStoreNames.contains("files")) d.createObjectStore("files", { keyPath: "path" }); if (!d.objectStoreNames.contains("docs")) d.createObjectStore("docs", { keyPath: "id" }); };
             r.onsuccess = () => res(r.result);
             r.onerror = () => rej(r.error);
         });
@@ -1007,15 +1012,25 @@
     // ---------- CÔNG NỢ: hạn thanh toán theo từng nhà cung cấp (lưu trong trình duyệt này) ----------
     const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } };
     const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
-    let debtTerms = lsGet("debtTerms", {}), debtPaid = lsGet("debtPaid", {}), debtDefault = lsGet("debtDefault", 30), debtMode = "overdue", debtRows = [], debtSup = [];
+    let debtTerms = lsGet("debtTerms", {}), debtPaid = lsGet("debtPaid", {}), debtDefault = normTerm(lsGet("debtDefault", 30)), debtMode = "overdue", debtRows = [], debtSup = [];
+    function normTerm(x) { return typeof x === "number" ? { t: "days", n: x } : (x && x.t ? x : { t: "days", n: 30 }); }
+    const getTerm = (m) => debtTerms[m] == null ? debtDefault : normTerm(debtTerms[m]);
+    const TERM_T = { days: "N ngày kể từ ngày hóa đơn", eom: "Cuối tháng HĐ + N ngày", dom: "Ngày N của tháng sau" };
+    const termLbl = (t) => t.t === "eom" ? `Cuối tháng + ${t.n} ngày` : t.t === "dom" ? `Ngày ${t.n} tháng sau` : `${t.n} ngày`;
+    function dueOf(d, tm) {
+        const n = Number(tm.n) || 0, y = d.getFullYear(), m = d.getMonth();
+        if (tm.t === "eom") { const x = new Date(y, m + 1, 0); x.setDate(x.getDate() + n); return x; }
+        if (tm.t === "dom") return new Date(y, m + 1, Math.min(Math.max(n, 1), new Date(y, m + 2, 0).getDate()));
+        const x = new Date(d); x.setDate(x.getDate() + n); return x;
+    }
     const invKey = (i) => `${i.sellerTax}|${i.series}|${i.number}`;
     const MODES = { overdue: "Quá hạn", soon7: "Đến hạn ≤ 7 ngày", soon30: "Đến hạn ≤ 30 ngày", unpaid: "Tất cả chưa thanh toán", paid: "Đã thanh toán" };
     function debtCalc() {
         const today = new Date(); today.setHours(0, 0, 0, 0);
         return allInvoices.map(i => {
-            const term = debtTerms[i.sellerTax] ?? debtDefault, d = new Date((i.date || "") + "T00:00:00");
+            const term = getTerm(i.sellerTax), d = new Date((i.date || "") + "T00:00:00");
             if (isNaN(d)) return null;
-            const due = new Date(d); due.setDate(due.getDate() + Number(term));
+            const due = dueOf(d, term);
             return { inv: i, term, due, days: Math.round((due - today) / 864e5), paid: !!debtPaid[invKey(i)], tot: Number(i.totalAmount) || 0 };
         }).filter(Boolean);
     }
@@ -1035,22 +1050,85 @@
              <button class="btn btn-export" onclick="exportDebt()">📥 Xuất Excel công nợ</button></div>
              <div class="summary">${card("Chưa thanh toán", money(sum(un)), "đ · " + un.length + " HĐ")}${card("Quá hạn", `<span class="due-over">${money(sum(over))}</span>`, "đ · " + over.length + " HĐ")}${card("Đến hạn ≤ 7 ngày", money(sum(soon)), "đ · " + soon.length + " HĐ")}${card("Đang xem", money(sum(rows)), "đ · " + rows.length + " HĐ", "main")}</div>
              <div class="filters2">${Object.entries(MODES).map(([k, v]) => `<button class="chip" style="${k === debtMode ? "background:var(--primary);color:#fff;border-color:var(--primary)" : ""}" onclick="debtMode='${k}';renderDebt()">${v}</button>`).join("")}</div>
-             <details class="terms"><summary>⚙️ Cài đặt số ngày được nợ của từng nhà cung cấp</summary>
-               <p class="sub">Mặc định mọi nhà cung cấp: <input type="number" min="0" class="search-input term-in" value="${debtDefault}" onchange="debtDefault=Number(this.value)||0;lsSet('debtDefault',debtDefault);renderDebt()"> ngày. Nhập số riêng cho nhà cung cấp có điều khoản khác (0 = thanh toán ngay). Cài đặt lưu trên trình duyệt này.</p>
-               <div class="terms-box"><table><tbody>${[...sup].sort((a, b) => a[1].localeCompare(b[1], "vi")).map(([m, n]) => `<tr><td class="seller">${esc(n)}</td><td><span class="badge-tax">${esc(m)}</span></td><td class="text-right"><input type="number" min="0" class="search-input term-in" data-t="${esc(m)}" value="${debtTerms[m] ?? debtDefault}" onchange="setTerm(this.dataset.t,this.value)"> ngày</td></tr>`).join("")}</tbody></table></div></details>
+             <p class="sub" style="margin:0 0 14px">Điều khoản hiện dùng: mặc định <b>${termLbl(debtDefault)}</b>, riêng từng nhà cung cấp cài trong <button class="chip" onclick="openContracts()">📑 Hợp đồng & điều khoản NCC</button></p>
              <h4 class="section-title">Theo nhà cung cấp (${debtSup.length})</h4>
              <div class="table-wrap" style="max-height:260px"><table><thead><tr><th>Nhà cung cấp</th><th>MST</th><th class="text-right">Số HĐ</th><th class="text-right">Tổng tiền</th><th>Hạn gần nhất</th></tr></thead><tbody>${debtSup.map(g => `<tr><td class="seller">${esc(g.name)}</td><td><span class="badge-tax">${esc(g.mst)}</span></td><td class="text-right">${g.n}</td><td class="text-right amount">${money(g.tot)}</td><td>${dueLbl(g.min)}</td></tr>`).join("") || `<tr><td colspan="5"><div class="empty">Không có hóa đơn nào ở mục này 🎉</div></td></tr>`}</tbody></table></div>
              <h4 class="section-title">Chi tiết hóa đơn (${rows.length})</h4>
              <div class="table-wrap" style="max-height:380px"><table><thead><tr><th>Đã TT</th><th>Số hóa đơn</th><th>Nhà cung cấp</th><th>Ngày HĐ</th><th>Hạn TT</th><th>Tình trạng</th><th class="text-right">Tổng tiền</th></tr></thead><tbody>${rows.slice(0, 500).map(r => `<tr class="${r.paid ? "paid-row" : ""}"><td class="text-center"><input type="checkbox" ${r.paid ? "checked" : ""} data-k="${esc(invKey(r.inv))}" onchange="setPaid(this.dataset.k,this.checked)"></td><td class="nowrap inv-no">${esc((r.inv.series ? r.inv.series + "-" : "") + r.inv.number)}</td><td>${esc(r.inv.sellerName)}</td><td class="nowrap">${r.inv.date}</td><td class="nowrap">${ymd(r.due)}</td><td class="nowrap">${r.paid ? "✔ Đã thanh toán" : dueLbl(r.days)}</td><td class="text-right amount">${money(r.tot)}</td></tr>`).join("")}</tbody></table></div>${rows.length > 500 ? `<p class="sub">Hiện 500 dòng đầu, file Excel có đủ ${rows.length} dòng.</p>` : ""}`;
     }
-    function setTerm(m, v) { debtTerms[m] = Math.max(0, Number(v) || 0); lsSet("debtTerms", debtTerms); const o = document.querySelector("#reportBody .terms"), op = o && o.open, t = document.querySelector("#reportBody .terms-box"), st = t ? t.scrollTop : 0; renderDebt(); const n = document.querySelector("#reportBody .terms"); if (n && op) { n.open = true; n.querySelector(".terms-box").scrollTop = st; } }
     function setPaid(k, v) { if (v) debtPaid[k] = 1; else delete debtPaid[k]; lsSet("debtPaid", debtPaid); const sc = document.querySelector("#reportBody .table-wrap:last-of-type"), st = sc ? sc.scrollTop : 0; renderDebt(); const n = document.querySelector("#reportBody .table-wrap:last-of-type"); if (n) n.scrollTop = st; }
     function exportDebt() {
         if (!debtRows.length) { alert("Mục đang xem chưa có hóa đơn để xuất."); return; }
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(debtSup.map(g => ({ "Nhà cung cấp": g.name, "MST": g.mst, "Số hóa đơn": g.n, "Tổng tiền": g.tot, "Hạn gần nhất (ngày còn lại)": g.min })) ), "Theo NCC");
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(debtRows.map(r => ({ "Nhà cung cấp": r.inv.sellerName, "MST": r.inv.sellerTax, "Số hóa đơn": (r.inv.series ? r.inv.series + "-" : "") + r.inv.number, "Ngày hóa đơn": r.inv.date, "Số ngày nợ": r.term, "Hạn thanh toán": ymd(r.due), "Ngày còn lại (âm = quá hạn)": r.days, "Tổng tiền": r.tot, "Đã thanh toán": r.paid ? "Có" : "Chưa" }))), "Chi tiết HĐ");
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(debtRows.map(r => ({ "Nhà cung cấp": r.inv.sellerName, "MST": r.inv.sellerTax, "Số hóa đơn": (r.inv.series ? r.inv.series + "-" : "") + r.inv.number, "Ngày hóa đơn": r.inv.date, "Điều khoản": termLbl(r.term), "Hạn thanh toán": ymd(r.due), "Ngày còn lại (âm = quá hạn)": r.days, "Tổng tiền": r.tot, "Đã thanh toán": r.paid ? "Có" : "Chưa" }))), "Chi tiết HĐ");
         XLSX.writeFile(wb, `Cong_no_${MODES[debtMode].replace(/\W+/g, "_")}_${ymd(new Date())}.xlsx`);
+    }
+
+
+    // ---------- HỢP ĐỒNG & ĐIỀU KHOẢN THANH TOÁN THEO NHÀ CUNG CẤP (file lưu trong trình duyệt này) ----------
+    let ctrDocs = {}, ctrView = "";
+    const docOp = async (mode, fn) => { const db = await openDB(); return new Promise((res, rej) => { const rq = fn(db.transaction("docs", mode).objectStore("docs")); rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error); }); };
+    const ctrStatus = (c) => {
+        if (!c.to) return `<span class="due-ok">Không thời hạn</span>`;
+        const d = Math.round((new Date(c.to + "T00:00:00") - new Date().setHours(0, 0, 0, 0)) / 864e5);
+        return d < 0 ? `<span class="due-over">Hết hạn ${-d} ngày</span>` : d <= 30 ? `<span class="due-soon">Sắp hết hạn (${d} ngày)</span>` : `<span class="due-ok">Còn hiệu lực</span>`;
+    };
+    const termInputs = (t, fnT, fnN, m) => `<select class="search-input term-in" data-m="${esc(m)}" onchange="${fnT}">${Object.entries(TERM_T).map(([k, v]) => `<option value="${k}" ${t.t === k ? "selected" : ""}>${v}</option>`).join("")}</select> N = <input type="number" min="0" class="search-input term-in" data-m="${esc(m)}" value="${t.n}" onchange="${fnN}">`;
+    async function openContracts() {
+        try { (await docOp("readonly", st => st.getAll())).forEach(r => ctrDocs[r.id] = r); } catch (e) {}
+        ctrView = ""; renderContracts(); document.getElementById("reportModal").style.display = "flex";
+    }
+    function renderContracts() {
+        if (ctrView) return renderSupplierCtr(ctrView);
+        const sup = new Map(); allInvoices.forEach(i => sup.set(i.sellerTax, i.sellerName));
+        Object.keys(ctrDocs).forEach(m => { if (!sup.has(m)) sup.set(m, m); });
+        document.getElementById("reportBody").innerHTML =
+            `<div class="rp-head"><div><h3 class="modal-title" style="margin:0">📑 Hợp đồng & điều khoản thanh toán</h3><p class="sub">Điều khoản dùng để tính hạn trong báo cáo công nợ. File hợp đồng lưu ngay trong trình duyệt này.</p></div>
+             <div><button class="chip" onclick="exportSettings()">💾 Sao lưu điều khoản</button> <label class="chip" style="display:inline-block">♻️ Khôi phục<input type="file" accept=".json" hidden onchange="importSettings(this.files[0])"></label> <button class="chip" onclick="renderDebt()">← Về công nợ</button></div></div>
+             <p class="sub">Mặc định cho mọi nhà cung cấp chưa cài riêng: ${termInputs(debtDefault, "setDefTerm('t',this.value)", "setDefTerm('n',this.value)", "")}</p>
+             <div class="table-wrap" style="max-height:60vh"><table><thead><tr><th>Nhà cung cấp</th><th>Điều khoản thanh toán</th><th>Hợp đồng</th><th></th></tr></thead><tbody>` +
+            [...sup].sort((a, b) => a[1].localeCompare(b[1], "vi")).map(([m, n]) => { const cs = (ctrDocs[m] || {}).contracts || [], last = cs.slice().sort((a, b) => (b.to || "9").localeCompare(a.to || "9"))[0];
+                return `<tr><td class="seller">${esc(n)}<br><span class="badge-tax">${esc(m)}</span></td><td>${termInputs(getTerm(m), "setTerm(this.dataset.m,'t',this.value)", "setTerm(this.dataset.m,'n',this.value)", m)}</td><td>${cs.length ? cs.length + " HĐ · " + ctrStatus(last) : '<span class="sub">Chưa có</span>'}</td><td><button class="btn-action btn-view" data-m="${esc(m)}" onclick="ctrView=this.dataset.m;renderContracts()">Quản lý</button></td></tr>`; }).join("") + `</tbody></table></div>`;
+    }
+    function setDefTerm(f, v) { debtDefault = { ...debtDefault, [f]: f === "n" ? Math.max(0, Number(v) || 0) : v }; lsSet("debtDefault", debtDefault); renderContracts(); }
+    function setTerm(m, f, v) { const t = { ...getTerm(m), [f]: f === "n" ? Math.max(0, Number(v) || 0) : v }; debtTerms[m] = t; lsSet("debtTerms", debtTerms); }
+    function renderSupplierCtr(m) {
+        const name = (allInvoices.find(i => i.sellerTax === m) || {}).sellerName || m, cs = (ctrDocs[m] || {}).contracts || [];
+        const f = (id, l, t) => `<div><label>${l}</label><input id="${id}" type="${t || "text"}" class="search-input"></div>`;
+        document.getElementById("reportBody").innerHTML =
+            `<div class="rp-head"><div><h3 class="modal-title" style="margin:0">📑 ${esc(name)}</h3><p class="sub">MST ${esc(m)} · Điều khoản: <b>${termLbl(getTerm(m))}</b></p></div><button class="chip" onclick="ctrView='';renderContracts()">← Danh sách nhà cung cấp</button></div>` +
+            (cs.map(c => `<div class="ctr-card"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>${esc(c.no || "(không số)")} — ${esc(c.title)}</b><span>${ctrStatus(c)}</span></div>
+              <div class="sub">Hiệu lực: ${esc(c.from || "…")} → ${esc(c.to || "không thời hạn")} · Giá trị: ${c.value ? money(c.value) + " đ" : "—"}</div>${c.note ? `<div class="sub">${esc(c.note)}</div>` : ""}
+              <div class="files">${(c.files || []).map((fl, k) => `<button class="btn-action btn-xml" onclick="dlCtr('${esc(m)}','${c.cid}',${k})">📎 ${esc(fl.name)}</button>`).join("") || '<span class="sub">Chưa đính kèm file</span>'} <button class="btn-action" style="background:var(--red)" onclick="delCtr('${esc(m)}','${c.cid}')">Xóa hợp đồng</button></div></div>`).join("") || '<p class="sub">Chưa có hợp đồng nào.</p>') +
+            `<h4 class="section-title">Thêm hợp đồng mới</h4><div class="ctr-form">${f("cNo", "Số hợp đồng")}${f("cTitle", "Tên / nội dung")}${f("cVal", "Giá trị (VNĐ)", "number")}${f("cFrom", "Hiệu lực từ", "date")}${f("cTo", "Hiệu lực đến", "date")}${f("cNote", "Ghi chú")}</div>
+             <input type="file" id="cFiles" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"> <button class="btn btn-reload" onclick="saveCtr('${esc(m)}')">💾 Lưu hợp đồng</button>`;
+    }
+    async function saveCtr(m) {
+        const v = (id) => document.getElementById(id).value.trim(), files = [...document.getElementById("cFiles").files];
+        if (!v("cNo") && !v("cTitle") && !files.length) { alert("Nhập số/tên hợp đồng hoặc chọn file đính kèm."); return; }
+        const rec = ctrDocs[m] || { id: m, contracts: [] };
+        rec.contracts.push({ cid: "c" + Date.now(), no: v("cNo"), title: v("cTitle"), value: v("cVal"), from: v("cFrom"), to: v("cTo"), note: v("cNote"), files });
+        try { await docOp("readwrite", st => st.put(rec)); ctrDocs[m] = rec; } catch (e) { rec.contracts.pop(); alert("Không lưu được (trình duyệt hết dung lượng?): " + e.message); }
+        renderContracts();
+    }
+    async function delCtr(m, cid) {
+        if (!confirm("Xóa hợp đồng này và các file đính kèm?")) return;
+        const rec = ctrDocs[m]; rec.contracts = rec.contracts.filter(c => c.cid !== cid);
+        await docOp("readwrite", st => st.put(rec)); renderContracts();
+    }
+    function dlCtr(m, cid, k) {
+        const fl = ctrDocs[m].contracts.find(c => c.cid === cid).files[k], a = document.createElement("a");
+        a.href = URL.createObjectURL(fl); a.download = fl.name; a.click();
+    }
+    function exportSettings() {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(new Blob([JSON.stringify({ debtTerms, debtDefault, debtPaid }, null, 1)], { type: "application/json" }));
+        a.download = `sao_luu_dieu_khoan_${ymd(new Date())}.json`; a.click();
+    }
+    async function importSettings(f) {
+        if (!f) return;
+        try { const d = JSON.parse(await f.text()); debtTerms = d.debtTerms || {}; debtDefault = normTerm(d.debtDefault); debtPaid = d.debtPaid || {}; lsSet("debtTerms", debtTerms); lsSet("debtDefault", debtDefault); lsSet("debtPaid", debtPaid); alert("Đã khôi phục điều khoản và trạng thái thanh toán."); renderContracts(); } catch (e) { alert("File sao lưu không hợp lệ."); }
     }
 
     function setStatus(type, msg) {
