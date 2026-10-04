@@ -144,6 +144,7 @@
         th[data-dir="-1"]::after{content:"▼";opacity:1;color:var(--primary)}
         .badge-tax.clickable{cursor:pointer;transition:.15s}
         .badge-tax.clickable:hover{background:var(--primary);color:#fff}
+        .buyer{color:#334155;font-weight:500}
         .rate{color:#475569;font-variant-numeric:tabular-nums}
         .vat{color:#475569;font-weight:600;font-variant-numeric:tabular-nums}
         .btn-theme{background:#fff;color:#374151;box-shadow:inset 0 0 0 1.5px #e5e7eb;padding:10px 13px}
@@ -176,7 +177,7 @@
         html[data-theme="dark"] tbody tr:nth-child(even){background:#1a2538}
         html[data-theme="dark"] tbody tr:hover{background:#243b5e}
         html[data-theme="dark"] .inv-no,html[data-theme="dark"] .seller{color:#f1f5f9}
-        html[data-theme="dark"] .rate,html[data-theme="dark"] .vat{color:#cbd5e1}
+        html[data-theme="dark"] .buyer,html[data-theme="dark"] .rate,html[data-theme="dark"] .vat{color:#cbd5e1}
         html[data-theme="dark"] .table-wrap{border-color:#2b3a52}
         html[data-theme="dark"] .status-info{background:#172554;border-color:#1e40af;color:#bfdbfe}
         html[data-theme="dark"] .status-success{background:#052e16;border-color:#166534;color:#bbf7d0}
@@ -250,6 +251,7 @@
                     <th style="width: 180px;" data-sort="number">Số Hóa Đơn</th>
                     <th style="width: 140px;" data-sort="tax">MST Bán</th>
                     <th data-sort="seller">Đơn Vị Bán</th>
+                    <th style="width: 170px;" data-sort="buyer">Người Mua Hàng</th>
                     <th style="width: 90px;" class="text-center hm" data-sort="rate">Thuế suất</th>
                     <th style="width: 120px;" class="text-right hm" data-sort="vat">Tiền thuế</th>
                     <th style="width: 140px;" class="text-right" data-sort="total">Tổng tiền (VNĐ)</th>
@@ -257,7 +259,7 @@
                 </tr>
             </thead>
             <tbody id="invoiceList">
-                <tr><td colspan="9"><div class="empty"><div class="big">⏳</div>Đang tải danh sách...</div></td></tr>
+                <tr><td colspan="10"><div class="empty"><div class="big">⏳</div>Đang tải danh sách...</div></td></tr>
             </tbody>
         </table>
         </div>
@@ -483,7 +485,7 @@
         if (page >= pages) page = pages - 1;
         const tbody = document.getElementById("invoiceList");
         if (!list.length) {
-            tbody.innerHTML = `<tr><td colspan="9"><div class="empty"><div class="big">📭</div>Không có hóa đơn nào phù hợp.</div></td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="10"><div class="empty"><div class="big">📭</div>Không có hóa đơn nào phù hợp.</div></td></tr>`;
             document.getElementById("pager").innerHTML = "";
             return;
         }
@@ -498,6 +500,7 @@
                 <td class="nowrap inv-no">${inv.series ? inv.series + '-' : ''}${inv.number}</td>
                 <td><span class="badge-tax clickable" title="Bấm để lọc theo nhà cung cấp này" data-tax="${esc(inv.sellerTax)}" onclick="searchBy(this.dataset.tax)">${esc(inv.sellerTax)}</span></td>
                 <td class="seller">${esc(inv.sellerName)}</td>
+                <td class="buyer" title="${esc(inv.buyerName)}">${esc(inv.buyerContact || inv.buyerName) || "—"}</td>
                 <td class="text-center hm rate">${esc(invRate(inv)) || "—"}</td>
                 <td class="text-right nowrap hm vat">${Number(inv.vatAmount) ? fmt(inv.vatAmount) : "—"}</td>
                 <td class="text-right nowrap"><span class="amount ${Number(inv.totalAmount) ? '' : 'zero'}">${fmt(inv.totalAmount)}</span></td>
@@ -813,6 +816,7 @@
         date:   (a, b) => (a.date || "").localeCompare(b.date || ""),
         number: (a, b) => (a.series || "").localeCompare(b.series || "") || ((Number(a.number) - Number(b.number)) || String(a.number).localeCompare(String(b.number))),
         tax:    (a, b) => String(a.sellerTax).localeCompare(String(b.sellerTax)),
+        buyer:  (a, b) => String(a.buyerContact || a.buyerName || "").localeCompare(String(b.buyerContact || b.buyerName || ""), "vi"),
         seller: (a, b) => String(a.sellerName).localeCompare(String(b.sellerName), "vi"),
         rate:   (a, b) => rateNum(a) - rateNum(b),
         vat:    (a, b) => (Number(a.vatAmount) || 0) - (Number(b.vatAmount) || 0),
