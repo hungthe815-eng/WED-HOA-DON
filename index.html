@@ -188,6 +188,15 @@
         html[data-theme="dark"] .total-box{background:linear-gradient(135deg,#1e3a5f,#312e81);border-color:#3b5b8f}
         html[data-theme="dark"] .close-btn{background:#334155;color:#cbd5e1}
         html[data-theme="dark"] .pager{color:var(--muted)}
+        .bar-row{display:flex;align-items:center;gap:10px;margin:7px 0;font-size:13px}
+        .bar-lbl{width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .bar-track{flex:1;background:#eef2f7;border-radius:6px;height:16px}
+        .bar-fill{height:100%;border-radius:6px;background:linear-gradient(90deg,#3b82f6,#6366f1);min-width:2px}
+        .bar-val{width:130px;text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+        .rp-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:16px;padding-right:44px}
+        .rp-head .sub{margin:2px 0 0}
+        html[data-theme="dark"] .bar-track{background:#0f172a}
+        @media(max-width:760px){.bar-lbl{width:110px}.bar-val{width:90px}}
     </style>
 </head>
 <body>
@@ -240,6 +249,15 @@
             <button class="chip reset" onclick="clearFilters()">✖ Xóa bộ lọc</button>
         </div>
 
+        <div class="filters2 reports-bar">
+            <b style="font-size:13px;color:var(--muted)">📈 BÁO CÁO:</b>
+            <button class="chip" onclick="openReport('month')">Theo tháng</button>
+            <button class="chip" onclick="openReport('seller')">Theo nhà cung cấp</button>
+            <button class="chip" onclick="openReport('buyer')">Theo người mua / rạp</button>
+            <button class="chip" onclick="openReport('rate')">Theo thuế suất</button>
+            <button class="chip" onclick="openReport('alert')">⚠️ Bất thường</button>
+        </div>
+
         <div class="summary" id="summary"></div>
 
         <div class="table-wrap">
@@ -264,6 +282,13 @@
         </table>
         </div>
         <div id="pager" class="pager"></div>
+    </div>
+</div>
+
+<div id="reportModal" class="modal">
+    <div class="modal-content" style="max-width:1100px">
+        <span class="close-btn" onclick="closeReport()">&times;</span>
+        <div id="reportBody"></div>
     </div>
 </div>
 
@@ -904,6 +929,72 @@
         filtered.sort((a, b) => cmp(a, b) * sortDir || (b.date || "").localeCompare(a.date || "") || String(b.number).localeCompare(String(a.number)));
         renderTable(filtered, keepPage === true);
     }
+
+
+    // ---------- BÁO CÁO / DASHBOARD (theo danh sách đang lọc) ----------
+    const REPORTS = {
+        month:  { title: "Báo cáo theo tháng", col: "Tháng", key: i => (i.date || "").slice(0, 7) || "Không rõ", asc: true },
+        seller: { title: "Báo cáo theo nhà cung cấp", col: "Nhà cung cấp", key: i => i.sellerTax + " · " + i.sellerName },
+        buyer:  { title: "Báo cáo theo người mua / rạp", col: "Người mua", key: i => i.buyerContact || i.buyerName || "(trống)" },
+        rate:   { title: "Báo cáo theo thuế suất", col: "Thuế suất", key: i => invRate(i) || "Không rõ" },
+        alert:  { title: "Hóa đơn cần lưu ý" }
+    };
+    let reportRows = [], reportName = "";
+    function groupRows(list, keyFn, asc) {
+        const m = new Map();
+        list.forEach(i => {
+            const k = keyFn(i), g = m.get(k) || { name: k, n: 0, pre: 0, vat: 0, tot: 0 };
+            g.n++; g.pre += Number(i.totalBeforeTax) || 0; g.vat += Number(i.vatAmount) || 0; g.tot += Number(i.totalAmount) || 0;
+            m.set(k, g);
+        });
+        return [...m.values()].sort(asc ? (a, b) => a.name.localeCompare(b.name) : (a, b) => b.tot - a.tot);
+    }
+    function openReport(type) {
+        const R = REPORTS[type], list = currentList, from = document.getElementById("dateFrom").value, to = document.getElementById("dateTo").value;
+        const period = (from || to) ? `Kỳ: ${from || "…"} → ${to || "…"}` : "Toàn bộ dữ liệu";
+        let body = "";
+        if (type === "alert") {
+            const common = {}; list.forEach(i => common[i.buyerTax] = (common[i.buyerTax] || 0) + 1);
+            const topBuyer = Object.keys(common).sort((a, b) => common[b] - common[a])[0];
+            const rows = [];
+            list.forEach(i => {
+                const add = (t) => rows.push({ "Cảnh báo": t, "Ngày": i.date, "Số hóa đơn": (i.series ? i.series + "-" : "") + i.number, "Nhà cung cấp": i.sellerName, "Tổng tiền": Number(i.totalAmount) || 0 });
+                if (!(Number(i.totalAmount) > 0)) add("Tổng tiền bằng 0");
+                if (i.buyerTax && topBuyer && i.buyerTax !== topBuyer) add("MST người mua khác thường lệ (" + i.buyerTax + ")");
+                if (i.relType) add("Hóa đơn " + i.relType.toLowerCase() + " – tránh kê khai trùng");
+                if (/không mã/i.test(i.checkResult || "")) add("Hóa đơn không mã của cơ quan thuế");
+            });
+            reportRows = rows; reportName = "Hoa_don_can_luu_y";
+            body = `<div class="table-wrap"><table><thead><tr><th>Cảnh báo</th><th>Ngày</th><th>Số hóa đơn</th><th>Nhà cung cấp</th><th class="text-right">Tổng tiền</th></tr></thead><tbody>` +
+                (rows.map(r => `<tr><td>${esc(r["Cảnh báo"])}</td><td class="nowrap">${r["Ngày"]}</td><td class="nowrap"><b>${esc(r["Số hóa đơn"])}</b></td><td>${esc(r["Nhà cung cấp"])}</td><td class="text-right amount">${money(r["Tổng tiền"])}</td></tr>`).join("") ||
+                 `<tr><td colspan="5"><div class="empty"><div class="big">✅</div>Không có hóa đơn bất thường trong danh sách đang lọc.</div></td></tr>`) + `</tbody></table></div>`;
+        } else {
+            const g = groupRows(list, R.key, R.asc), tot = g.reduce((a, x) => a + x.tot, 0) || 1, max = Math.max(...g.map(x => x.tot), 1);
+            reportRows = g.map(x => ({ [R.col]: x.name, "Số hóa đơn": x.n, "Tiền chưa thuế": x.pre, "Tiền thuế": x.vat, "Tổng thanh toán": x.tot, "Tỷ trọng %": +(x.tot / tot * 100).toFixed(2) }));
+            reportName = "Bao_cao_" + type;
+            body = `<div style="margin-bottom:18px">${g.slice(0, 12).map(x => `<div class="bar-row"><div class="bar-lbl" title="${esc(x.name)}">${esc(x.name)}</div><div class="bar-track"><div class="bar-fill" style="width:${(x.tot / max * 100).toFixed(1)}%"></div></div><div class="bar-val">${money(x.tot)}</div></div>`).join("")}${g.length > 12 ? `<div class="sub">Biểu đồ hiện 12 nhóm đầu, bảng bên dưới có đủ ${g.length} nhóm.</div>` : ""}</div>
+                <div class="table-wrap"><table><thead><tr><th>${R.col}</th><th class="text-right">Số HĐ</th><th class="text-right">Chưa thuế</th><th class="text-right">Tiền thuế</th><th class="text-right">Tổng thanh toán</th><th class="text-right">Tỷ trọng</th></tr></thead><tbody>` +
+                g.map(x => `<tr><td class="seller">${esc(x.name)}</td><td class="text-right">${x.n}</td><td class="text-right nowrap">${money(x.pre)}</td><td class="text-right nowrap">${money(x.vat)}</td><td class="text-right nowrap amount">${money(x.tot)}</td><td class="text-right">${(x.tot / tot * 100).toFixed(1)}%</td></tr>`).join("") + `</tbody></table></div>`;
+        }
+        const pre = list.reduce((a, i) => a + (Number(i.totalBeforeTax) || 0), 0), vat = list.reduce((a, i) => a + (Number(i.vatAmount) || 0), 0), tot = list.reduce((a, i) => a + (Number(i.totalAmount) || 0), 0);
+        document.getElementById("reportBody").innerHTML =
+            `<div class="rp-head"><div><h3 class="modal-title" style="margin:0">📊 ${R.title}</h3><p class="sub">${esc(period)} · ${list.length.toLocaleString("vi-VN")} hóa đơn</p></div>
+             <button class="btn btn-export" onclick="exportReport()">📥 Xuất Excel báo cáo</button></div>
+             <div class="summary"><div class="sum-card"><div class="lbl">Số hóa đơn</div><div class="val">${list.length.toLocaleString("vi-VN")}</div></div>
+             <div class="sum-card"><div class="lbl">Chưa thuế</div><div class="val">${money(pre)}<small>đ</small></div></div>
+             <div class="sum-card"><div class="lbl">Tiền thuế</div><div class="val">${money(vat)}<small>đ</small></div></div>
+             <div class="sum-card main"><div class="lbl">Tổng thanh toán</div><div class="val">${money(tot)}<small>đ</small></div></div></div>` + body;
+        document.getElementById("reportModal").style.display = "flex";
+    }
+    function closeReport() { document.getElementById("reportModal").style.display = "none"; }
+    function exportReport() {
+        if (!reportRows.length) { alert("Báo cáo chưa có dữ liệu để xuất."); return; }
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(reportRows), "Báo cáo");
+        XLSX.writeFile(wb, `${reportName}_${new Date().toISOString().split("T")[0]}.xlsx`);
+    }
+    document.addEventListener("keydown", e => { if (e.key === "Escape") closeReport(); });
+    document.getElementById("reportModal").addEventListener("click", e => { if (e.target.id === "reportModal") closeReport(); });
 
     function setStatus(type, msg) {
         const el = document.getElementById("statusBox");
