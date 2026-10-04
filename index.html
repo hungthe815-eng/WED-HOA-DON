@@ -2,6 +2,7 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
+    <script>try{var t=localStorage.getItem("theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");document.documentElement.dataset.theme=t}catch(e){}</script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tra Cứu Hóa Đơn - Galaxy Studio</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -117,6 +118,76 @@
             .date-input{flex:1;width:auto}
             .card{padding:18px}
         }
+
+        /* ===== bổ sung: tổng hợp, bộ lọc nhanh, sắp xếp, dark mode ===== */
+        .filters{margin-bottom:12px}
+        .filters2{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:20px}
+        .chip{border:1.5px solid #e5e7eb;background:#fff;color:#374151;padding:7px 13px;border-radius:999px;cursor:pointer;
+            font:500 13px/1 inherit;font-family:inherit;transition:.15s;white-space:nowrap}
+        .chip:hover{border-color:var(--primary);color:var(--primary);background:var(--primary-soft)}
+        .chip.reset{color:var(--red)}
+        .chip.reset:hover{border-color:#fca5a5;background:#fef2f2;color:var(--red)}
+        .sep{width:1px;height:22px;background:#e5e7eb;margin:0 4px}
+        .amt{width:150px;padding:8px 12px;font-size:13px}
+        .page-size{padding:8px 10px;font-size:13px;width:auto;cursor:pointer}
+        .spacer{flex:1}
+        .summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+        .sum-card{padding:14px 16px;border-radius:12px;background:#f8fafc;border:1px solid var(--line)}
+        .sum-card .lbl{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+        .sum-card .val{margin-top:4px;font-size:20px;font-weight:700;color:#111827;font-variant-numeric:tabular-nums}
+        .sum-card .val small{font-size:12px;font-weight:500;color:var(--muted);margin-left:3px}
+        .sum-card.main{background:linear-gradient(135deg,#eff6ff,#eef2ff);border-color:#dbeafe}
+        .sum-card.main .val{color:var(--primary-d)}
+        th[data-sort]{cursor:pointer;user-select:none}
+        th[data-sort]:hover{color:var(--primary);background:#eef4ff}
+        th[data-sort]::after{content:"↕";opacity:.35;margin-left:6px;font-size:11px}
+        th[data-dir="1"]::after{content:"▲";opacity:1;color:var(--primary)}
+        th[data-dir="-1"]::after{content:"▼";opacity:1;color:var(--primary)}
+        .badge-tax.clickable{cursor:pointer;transition:.15s}
+        .badge-tax.clickable:hover{background:var(--primary);color:#fff}
+        .rate{color:#475569;font-variant-numeric:tabular-nums}
+        .vat{color:#475569;font-weight:600;font-variant-numeric:tabular-nums}
+        .btn-theme{background:#fff;color:#374151;box-shadow:inset 0 0 0 1.5px #e5e7eb;padding:10px 13px}
+        .btn-theme:hover{background:#f3f4f6}
+        @media(max-width:980px){.summary{grid-template-columns:repeat(2,1fr)}}
+        @media(max-width:760px){
+            .hm{display:none}
+            .amt{flex:1;width:auto}
+            .sep{display:none}
+            .sum-card .val{font-size:16px}
+        }
+
+        html[data-theme="dark"]{--bg:#0f172a;--card:#1e293b;--text:#e5e7eb;--muted:#94a3b8;--line:#2b3a52;
+            --primary:#60a5fa;--primary-d:#93c5fd;--primary-soft:#1e3a5f;color-scheme:dark}
+        html[data-theme="dark"] body{background:radial-gradient(1200px 400px at 50% -100px,#1e3a8a55 0%,transparent 70%),var(--bg)}
+        html[data-theme="dark"] .card{border-color:#2b3a52}
+        html[data-theme="dark"] h2,html[data-theme="dark"] .modal-title,html[data-theme="dark"] .sum-card .val{color:#f1f5f9}
+        html[data-theme="dark"] .search-input{background:#0f172a;border-color:#334155;color:var(--text)}
+        html[data-theme="dark"] .search-input:focus{background:#0f172a}
+        html[data-theme="dark"] .chip,html[data-theme="dark"] .btn-theme,html[data-theme="dark"] .btn-clear{background:#1e293b;border-color:#334155;color:#cbd5e1}
+        html[data-theme="dark"] .btn-theme{box-shadow:inset 0 0 0 1.5px #334155}
+        html[data-theme="dark"] .btn-clear{color:#fca5a5;box-shadow:inset 0 0 0 1.5px #7f1d1d}
+        html[data-theme="dark"] .chip:hover,html[data-theme="dark"] .btn-theme:hover{background:var(--primary-soft)}
+        html[data-theme="dark"] .sep{background:#334155}
+        html[data-theme="dark"] .sum-card{background:#0f172a;border-color:#2b3a52}
+        html[data-theme="dark"] .sum-card.main{background:linear-gradient(135deg,#1e3a5f,#312e81);border-color:#3b5b8f}
+        html[data-theme="dark"] table{background:#1e293b}
+        html[data-theme="dark"] th{background:#17223a;color:#cbd5e1;border-bottom-color:#2b3a52}
+        html[data-theme="dark"] th[data-sort]:hover{background:#1e3a5f}
+        html[data-theme="dark"] tbody tr:nth-child(even){background:#1a2538}
+        html[data-theme="dark"] tbody tr:hover{background:#243b5e}
+        html[data-theme="dark"] .inv-no,html[data-theme="dark"] .seller{color:#f1f5f9}
+        html[data-theme="dark"] .rate,html[data-theme="dark"] .vat{color:#cbd5e1}
+        html[data-theme="dark"] .table-wrap{border-color:#2b3a52}
+        html[data-theme="dark"] .status-info{background:#172554;border-color:#1e40af;color:#bfdbfe}
+        html[data-theme="dark"] .status-success{background:#052e16;border-color:#166534;color:#bbf7d0}
+        html[data-theme="dark"] .status-error{background:#450a0a;border-color:#991b1b;color:#fecaca}
+        html[data-theme="dark"] .modal-content{background:#1e293b;color:var(--text)}
+        html[data-theme="dark"] .invoice-header-info{background:#17223a;border-color:#2b3a52}
+        html[data-theme="dark"] .invoice-header-info b,html[data-theme="dark"] .section-title{color:#cbd5e1}
+        html[data-theme="dark"] .total-box{background:linear-gradient(135deg,#1e3a5f,#312e81);border-color:#3b5b8f}
+        html[data-theme="dark"] .close-btn{background:#334155;color:#cbd5e1}
+        html[data-theme="dark"] .pager{color:var(--muted)}
     </style>
 </head>
 <body>
@@ -135,6 +206,7 @@
                 <button class="btn btn-export" onclick="exportToExcel()">📊 Xuất Excel Tổng</button>
                 <button class="btn btn-reload" onclick="loadInvoicesFromGitHub()">🔄 Cập Nhật Dữ Liệu Mới</button>
                 <button class="btn btn-clear" onclick="clearCache()">🗑️ Xóa Cache</button>
+                <button class="btn btn-theme" id="themeBtn" onclick="toggleTheme()" title="Chế độ sáng/tối">🌙</button>
             </div>
         </div>
 
@@ -145,27 +217,48 @@
         <div class="filters">
             <div class="search-wrap">
                 <span class="ico">🔍</span>
-                <input type="text" id="searchInput" class="search-input" placeholder="Tìm theo Mã số thuế, Tên nhà cung cấp, Số hóa đơn..." oninput="debounceFilter()">
+                <input type="text" id="searchInput" class="search-input" placeholder="Tìm theo MST, tên bên bán/bên mua, số hóa đơn, tên hàng hóa... (không cần gõ dấu)" oninput="debounceFilter()">
             </div>
             <input type="date" id="dateFrom" class="search-input date-input" onchange="filterTable()" title="Từ ngày">
             <input type="date" id="dateTo" class="search-input date-input" onchange="filterTable()" title="Đến ngày">
         </div>
+
+        <div class="filters2">
+            <button class="chip" onclick="quickRange('month')">Tháng này</button>
+            <button class="chip" onclick="quickRange('lastmonth')">Tháng trước</button>
+            <button class="chip" onclick="quickRange('quarter')">Quý này</button>
+            <button class="chip" onclick="quickRange('lastquarter')">Quý trước</button>
+            <button class="chip" onclick="quickRange('year')">Năm nay</button>
+            <span class="sep"></span>
+            <input type="number" id="amtMin" class="search-input amt" min="0" placeholder="Tiền từ (VNĐ)" oninput="debounceFilter()">
+            <input type="number" id="amtMax" class="search-input amt" min="0" placeholder="Tiền đến (VNĐ)" oninput="debounceFilter()">
+            <span class="spacer"></span>
+            <select id="pageSize" class="search-input page-size" onchange="changePageSize()" title="Số dòng mỗi trang">
+                <option value="50">50 dòng/trang</option><option value="100">100 dòng/trang</option>
+                <option value="200">200 dòng/trang</option><option value="500">500 dòng/trang</option>
+            </select>
+            <button class="chip reset" onclick="clearFilters()">✖ Xóa bộ lọc</button>
+        </div>
+
+        <div class="summary" id="summary"></div>
 
         <div class="table-wrap">
         <table>
             <thead>
                 <tr>
                     <th style="width: 60px;" class="text-center">STT</th>
-                    <th style="width: 120px;">Ngày Lập</th>
-                    <th style="width: 190px;">Số Hóa Đơn</th>
-                    <th style="width: 140px;">MST Bán</th>
-                    <th>Đơn Vị Bán</th>
-                    <th style="width: 140px;" class="text-right">Tổng Tiền (VNĐ)</th>
+                    <th style="width: 120px;" data-sort="date">Ngày Lập</th>
+                    <th style="width: 180px;" data-sort="number">Số Hóa Đơn</th>
+                    <th style="width: 140px;" data-sort="tax">MST Bán</th>
+                    <th data-sort="seller">Đơn Vị Bán</th>
+                    <th style="width: 90px;" class="text-center hm" data-sort="rate">Thuế suất</th>
+                    <th style="width: 120px;" class="text-right hm" data-sort="vat">Tiền thuế</th>
+                    <th style="width: 140px;" class="text-right" data-sort="total">Tổng tiền (VNĐ)</th>
                     <th style="width: 230px;" class="text-center">Thao Tác</th>
                 </tr>
             </thead>
             <tbody id="invoiceList">
-                <tr><td colspan="7"><div class="empty"><div class="big">⏳</div>Đang tải danh sách...</div></td></tr>
+                <tr><td colspan="9"><div class="empty"><div class="big">⏳</div>Đang tải danh sách...</div></td></tr>
             </tbody>
         </table>
         </div>
@@ -188,7 +281,7 @@
     let allInvoices = [];      // toàn bộ hóa đơn (đã gộp từ cache)
     let currentList = [];      // danh sách đang hiển thị (sau lọc)
     let page = 0;
-    const PAGE_SIZE = 100;
+    let PAGE_SIZE = 100;
     const CACHE_VERSION = 1;   // tăng số này nếu sửa cách đọc XML để buộc đọc lại
     const CONCURRENCY = 8;
 
@@ -224,7 +317,6 @@
             const k = `${inv.sellerTax}|${inv.series}|${inv.number}`;
             if (!seen.has(k)) { seen.add(k); out.push(inv); }
         }));
-        out.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
         allInvoices = out;
         filterTable(true);
     }
@@ -385,12 +477,14 @@
 
     function renderTable(list, keepPage) {
         currentList = list;
+        updateSummary(list);
+        updateSortIcons();
         if (!keepPage) page = 0;
         const pages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
         if (page >= pages) page = pages - 1;
         const tbody = document.getElementById("invoiceList");
         if (!list.length) {
-            tbody.innerHTML = `<tr><td colspan="7"><div class="empty"><div class="big">📭</div>Không có hóa đơn nào phù hợp.</div></td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="9"><div class="empty"><div class="big">📭</div>Không có hóa đơn nào phù hợp.</div></td></tr>`;
             document.getElementById("pager").innerHTML = "";
             return;
         }
@@ -403,8 +497,10 @@
                 <td class="text-center stt">${idx + 1}</td>
                 <td class="nowrap">${inv.date}</td>
                 <td class="nowrap inv-no">${inv.series ? inv.series + '-' : ''}${inv.number}</td>
-                <td><span class="badge-tax">${inv.sellerTax}</span></td>
-                <td class="seller">${inv.sellerName}</td>
+                <td><span class="badge-tax clickable" title="Bấm để lọc theo nhà cung cấp này" data-tax="${esc(inv.sellerTax)}" onclick="searchBy(this.dataset.tax)">${esc(inv.sellerTax)}</span></td>
+                <td class="seller">${esc(inv.sellerName)}</td>
+                <td class="text-center hm rate">${esc(invRate(inv)) || "—"}</td>
+                <td class="text-right nowrap hm vat">${Number(inv.vatAmount) ? fmt(inv.vatAmount) : "—"}</td>
                 <td class="text-right nowrap"><span class="amount ${Number(inv.totalAmount) ? '' : 'zero'}">${fmt(inv.totalAmount)}</span></td>
                 <td class="text-center"><div class="actions">
                     <button class="btn-action btn-view" onclick="viewInvoice(${idx})">👁️ Xem</button>
@@ -663,15 +759,111 @@
         } catch (e) { alert("Không tải được file gốc: " + e.message); }
     }
 
+    // ---------- tìm kiếm không dấu, sắp xếp, tổng hợp, lọc nhanh ----------
+    const norm = (v) => String(v == null ? "" : v).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D").toLowerCase();
+    const money = (v) => Number(v || 0).toLocaleString("vi-VN");
+    function invRate(inv) {
+        const set = [];
+        (inv.items || []).forEach(it => { if (it.vat && !set.includes(it.vat)) set.push(it.vat); });
+        return set.join(" / ");
+    }
+    const rateNum = (inv) => parseFloat(invRate(inv)) || 0;
+    function searchText(inv) {
+        if (!inv._s) inv._s = norm([inv.sellerTax, inv.sellerName, inv.series, inv.number, (inv.series || "") + "-" + inv.number, (inv.series || "") + inv.number,
+            inv.buyerName, inv.buyerTax, inv.buyerContact].concat((inv.items || []).map(i => (i.name || "") + " " + (i.code || ""))).join(" "));
+        return inv._s;
+    }
+
+    let sortKey = "date", sortDir = -1;
+    const SORTERS = {
+        date:   (a, b) => (a.date || "").localeCompare(b.date || ""),
+        number: (a, b) => (a.series || "").localeCompare(b.series || "") || ((Number(a.number) - Number(b.number)) || String(a.number).localeCompare(String(b.number))),
+        tax:    (a, b) => String(a.sellerTax).localeCompare(String(b.sellerTax)),
+        seller: (a, b) => String(a.sellerName).localeCompare(String(b.sellerName), "vi"),
+        rate:   (a, b) => rateNum(a) - rateNum(b),
+        vat:    (a, b) => (Number(a.vatAmount) || 0) - (Number(b.vatAmount) || 0),
+        total:  (a, b) => (Number(a.totalAmount) || 0) - (Number(b.totalAmount) || 0)
+    };
+    function sortBy(k) {
+        if (sortKey === k) sortDir = -sortDir;
+        else { sortKey = k; sortDir = (k === "date" || k === "total" || k === "vat") ? -1 : 1; }
+        filterTable();
+    }
+    function updateSortIcons() {
+        document.querySelectorAll("th[data-sort]").forEach(th => th.dataset.dir = th.dataset.sort === sortKey ? sortDir : "");
+    }
+    document.querySelectorAll("th[data-sort]").forEach(th => th.addEventListener("click", () => sortBy(th.dataset.sort)));
+
+    function updateSummary(list) {
+        let pre = 0, vat = 0, tot = 0;
+        list.forEach(i => { pre += Number(i.totalBeforeTax) || 0; vat += Number(i.vatAmount) || 0; tot += Number(i.totalAmount) || 0; });
+        document.getElementById("summary").innerHTML =
+            `<div class="sum-card"><div class="lbl">Số hóa đơn</div><div class="val">${list.length.toLocaleString("vi-VN")}</div></div>
+             <div class="sum-card"><div class="lbl">Tiền chưa thuế</div><div class="val">${money(pre)}<small>đ</small></div></div>
+             <div class="sum-card"><div class="lbl">Tiền thuế GTGT</div><div class="val">${money(vat)}<small>đ</small></div></div>
+             <div class="sum-card main"><div class="lbl">Tổng thanh toán</div><div class="val">${money(tot)}<small>đ</small></div></div>`;
+    }
+
+    const pad2 = (n) => String(n).padStart(2, "0");
+    const ymd = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+    function quickRange(t) {
+        const n = new Date(), y = n.getFullYear(), m = n.getMonth(), q = Math.floor(m / 3) * 3;
+        const R = {
+            month: [new Date(y, m, 1), new Date(y, m + 1, 0)],
+            lastmonth: [new Date(y, m - 1, 1), new Date(y, m, 0)],
+            quarter: [new Date(y, q, 1), new Date(y, q + 3, 0)],
+            lastquarter: [new Date(y, q - 3, 1), new Date(y, q, 0)],
+            year: [new Date(y, 0, 1), new Date(y, 11, 31)]
+        }[t];
+        document.getElementById("dateFrom").value = ymd(R[0]);
+        document.getElementById("dateTo").value = ymd(R[1]);
+        filterTable();
+    }
+    function clearFilters() {
+        ["searchInput", "dateFrom", "dateTo", "amtMin", "amtMax"].forEach(id => document.getElementById(id).value = "");
+        filterTable();
+    }
+    function searchBy(v) {
+        document.getElementById("searchInput").value = v;
+        filterTable();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+    function changePageSize() {
+        PAGE_SIZE = Number(document.getElementById("pageSize").value) || 100;
+        try { localStorage.setItem("pageSize", PAGE_SIZE); } catch (e) {}
+        renderTable(currentList);
+    }
+    function toggleTheme() {
+        const t = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+        document.documentElement.dataset.theme = t;
+        try { localStorage.setItem("theme", t); } catch (e) {}
+        syncThemeBtn();
+    }
+    function syncThemeBtn() { document.getElementById("themeBtn").textContent = document.documentElement.dataset.theme === "dark" ? "☀️" : "🌙"; }
+    (function initUi() {
+        try { const ps = Number(localStorage.getItem("pageSize")); if (ps) { PAGE_SIZE = ps; document.getElementById("pageSize").value = ps; } } catch (e) {}
+        if (document.getElementById("pageSize").value != PAGE_SIZE) document.getElementById("pageSize").value = "100";
+        syncThemeBtn();
+    })();
+
     let filterTimer;
     function debounceFilter() { clearTimeout(filterTimer); filterTimer = setTimeout(() => filterTable(), 250); }
     function filterTable(keepPage) {
-        const kw = document.getElementById("searchInput").value.toLowerCase();
+        const toks = norm(document.getElementById("searchInput").value).split(/\s+/).filter(Boolean);
         const from = document.getElementById("dateFrom").value, to = document.getElementById("dateTo").value;
-        const filtered = allInvoices.filter(inv =>
-            (!from || inv.date >= from) && (!to || inv.date <= to) &&
-            (!kw || inv.sellerTax.toLowerCase().includes(kw) || inv.sellerName.toLowerCase().includes(kw) || inv.number.toLowerCase().includes(kw))
-        );
+        const minV = document.getElementById("amtMin").value, maxV = document.getElementById("amtMax").value;
+        const min = minV === "" ? null : Number(minV), max = maxV === "" ? null : Number(maxV);
+        const filtered = allInvoices.filter(inv => {
+            if (from && inv.date < from) return false;
+            if (to && inv.date > to) return false;
+            const amt = Number(inv.totalAmount) || 0;
+            if (min !== null && amt < min) return false;
+            if (max !== null && amt > max) return false;
+            if (toks.length) { const t = searchText(inv); if (!toks.every(k => t.includes(k))) return false; }
+            return true;
+        });
+        const cmp = SORTERS[sortKey] || SORTERS.date;
+        filtered.sort((a, b) => cmp(a, b) * sortDir || (b.date || "").localeCompare(a.date || "") || String(b.number).localeCompare(String(a.number)));
         renderTable(filtered, keepPage === true);
     }
 
