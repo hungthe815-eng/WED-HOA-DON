@@ -252,8 +252,7 @@
             <button class="chip" onclick="quickRange('lastquarter')">Quý trước</button>
             <button class="chip" onclick="quickRange('year')">Năm nay</button>
             <span class="sep"></span>
-            <input type="number" id="amtMin" class="search-input amt" min="0" placeholder="Tiền từ (VNĐ)" oninput="debounceFilter()">
-            <input type="number" id="amtMax" class="search-input amt" min="0" placeholder="Tiền đến (VNĐ)" oninput="debounceFilter()">
+            <select id="expFilter" class="search-input page-size" style="max-width:260px" onchange="filterTable()" title="Lọc theo loại chi phí đã phân loại trong báo cáo dòng tiền"></select>
             <span class="spacer"></span>
             <select id="pageSize" class="search-input page-size" onchange="changePageSize()" title="Số dòng mỗi trang">
                 <option value="50">50 dòng/trang</option><option value="100">100 dòng/trang</option>
@@ -896,7 +895,7 @@
         filterTable();
     }
     function clearFilters() {
-        ["searchInput", "dateFrom", "dateTo", "amtMin", "amtMax"].forEach(id => document.getElementById(id).value = "");
+        ["searchInput", "dateFrom", "dateTo", "expFilter"].forEach(id => document.getElementById(id).value = "");
         filterTable();
     }
     function searchBy(v) {
@@ -927,14 +926,11 @@
     function filterTable(keepPage) {
         const toks = norm(document.getElementById("searchInput").value).split(/\s+/).filter(Boolean);
         const from = document.getElementById("dateFrom").value, to = document.getElementById("dateTo").value;
-        const minV = document.getElementById("amtMin").value, maxV = document.getElementById("amtMax").value;
-        const min = minV === "" ? null : Number(minV), max = maxV === "" ? null : Number(maxV);
+        const expF = document.getElementById("expFilter").value;
         const filtered = allInvoices.filter(inv => {
             if (from && inv.date < from) return false;
             if (to && inv.date > to) return false;
-            const amt = Number(inv.totalAmount) || 0;
-            if (min !== null && amt < min) return false;
-            if (max !== null && amt > max) return false;
+            if (expF && (expF === "__none" ? expOf(inv.sellerTax) !== NOCAT : expOf(inv.sellerTax) !== expF)) return false;
             if (toks.length) { const t = searchText(inv); if (!toks.every(k => t.includes(k))) return false; }
             return true;
         });
@@ -1073,16 +1069,23 @@
     let cashCats = lsGet("cashCats", ["Hàng hóa / Nguyên vật liệu", "Mặt bằng / Thuê", "Điện nước / Internet", "Marketing / Quảng cáo", "Sửa chữa / Thiết bị", "Dịch vụ / Thuê ngoài", "Khác"]), cashCatOf = lsGet("cashCatOf", {}), cashCatOpen = {};
     const NOCAT = "Chưa phân loại chi phí", qa = (v) => esc(v).replace(/"/g, "&quot;");
     const expOf = (m) => cashCatOf[m] && cashCats.includes(cashCatOf[m]) ? cashCatOf[m] : NOCAT;
+    function fillExpFilter() {
+        const el = document.getElementById("expFilter"), cur = el.value;
+        el.innerHTML = `<option value="">Tất cả loại chi phí</option>` + cashCats.map(c => `<option value="${qa(c)}">${esc(c)}</option>`).join("") + `<option value="__none">${NOCAT}</option>`;
+        el.value = [...el.options].some(o => o.value === cur) ? cur : "";
+    }
+    const expChanged = () => { fillExpFilter(); filterTable(true); };
+    document.addEventListener("DOMContentLoaded", fillExpFilter);
     function cashSetExp(m, v) {
         if (v === "__new") { const n = (prompt("Tên loại chi phí mới:") || "").trim(); if (!n) return cashRefresh(); if (!cashCats.includes(n)) { cashCats.push(n); lsSet("cashCats", cashCats); } v = n; }
         if (!v) delete cashCatOf[m]; else cashCatOf[m] = v;
-        lsSet("cashCatOf", cashCatOf); cashRefresh();
+        lsSet("cashCatOf", cashCatOf); expChanged(); cashRefresh();
     }
     function cashDelExp() {
         const n = (prompt("Xóa loại chi phí nào? Nhập đúng tên:\n\n" + cashCats.join("\n")) || "").trim();
         if (!cashCats.includes(n) || !confirm(`Xóa loại "${n}"? Các NCC thuộc loại này sẽ về "${NOCAT}".`)) return;
         cashCats = cashCats.filter(x => x !== n); lsSet("cashCats", cashCats);
-        Object.keys(cashCatOf).forEach(k => { if (cashCatOf[k] === n) delete cashCatOf[k]; }); lsSet("cashCatOf", cashCatOf); cashRefresh();
+        Object.keys(cashCatOf).forEach(k => { if (cashCatOf[k] === n) delete cashCatOf[k]; }); lsSet("cashCatOf", cashCatOf); expChanged(); cashRefresh();
     }
     const expSelect = (m, cur) => `<select class="search-input term-in" style="max-width:220px" data-m="${qa(m)}" onchange="cashSetExp(this.dataset.m,this.value)"><option value="">— chọn loại chi phí —</option>${cashCats.map(c => `<option value="${qa(c)}" ${cur === c ? "selected" : ""}>${esc(c)}</option>`).join("")}<option value="__new">＋ Thêm loại mới…</option></select>`;
     let cashEditOpen = false;
@@ -1113,7 +1116,7 @@
     function cashGo(n) { cashWk = n === 0 ? 0 : Math.max(-26, Math.min(60, cashWk + n)); cashOver = cashWk <= 0; cashRefresh(); }
     function cashPick(i) { if (i === -1) { cashWk = 0; cashOver = true; } else { cashWk = i; cashOver = i === 0; } cashRefresh(); }
     function cashToggle(m) { cashOpen[m] = !cashOpen[m]; cashRefresh(); }
-    function cashSetBudget(v) { cashBudget[cashKey()] = Math.max(0, Number(v) || 0); lsSet("cashBudget", cashBudget); cashCats = d.cashCats || cashCats; cashCatOf = d.cashCatOf || {}; lsSet("cashCats", cashCats); lsSet("cashCatOf", cashCatOf); cashRefresh(); }
+    function cashSetBudget(v) { cashBudget[cashKey()] = Math.max(0, Number(v) || 0); lsSet("cashBudget", cashBudget); cashCats = d.cashCats || cashCats; cashCatOf = d.cashCatOf || {}; lsSet("cashCats", cashCats); lsSet("cashCatOf", cashCatOf); expChanged(); cashRefresh(); }
     function cashSetCat(m, c) { const k = cashKey() + "|" + m; if (!c) delete cashPlan[k]; else cashPlan[k] = { c, a: (cashPlan[k] || {}).a || 0 }; lsSet("cashPlan", cashPlan); cashRefresh(); }
     function cashSetAmt(m, v) { const k = cashKey() + "|" + m; cashPlan[k] = { c: "part", a: Math.max(0, Number(v) || 0) }; lsSet("cashPlan", cashPlan); cashRefresh(); }
     function cashAuto() {
