@@ -7,43 +7,115 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        * { box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; color: #333; }
-        .container { max-width: 1200px; margin: 0 auto; }
-        .card { background: #fff; padding: 24px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 20px; }
-        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e8e8e8; padding-bottom: 15px; margin-bottom: 20px; }
-        h2 { margin: 0; color: #0050b3; font-size: 22px; }
-        .btn-group { display: flex; gap: 10px; }
-        .btn-reload { background: #52c41a; color: white; border: none; padding: 10px 18px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; }
-        .btn-reload:hover { background: #73d13d; }
-        .btn-export { background: #13c2c2; color: white; border: none; padding: 10px 18px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; }
-        .btn-export:hover { background: #36cfc9; }
-        .status-box { padding: 12px 16px; border-radius: 6px; font-weight: 500; margin-bottom: 20px; font-size: 14px; }
-        .status-info { background: #e6f7ff; border: 1px solid #91d5ff; color: #0958d9; }
-        .status-success { background: #f6ffed; border: 1px solid #b7eb8f; color: #389e0d; }
-        .status-error { background: #fff2f0; border: 1px solid #ffccc7; color: #cf1322; }
-        .search-container { margin-bottom: 20px; }
-        .search-input { width: 100%; padding: 12px 16px; border: 1px solid #d9d9d9; border-radius: 6px; outline: none; font-size: 15px; }
-        table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 6px; overflow: hidden; }
-        th, td { border: 1px solid #f0f0f0; padding: 12px 15px; text-align: left; font-size: 14px; }
-        th { background: #fafafa; font-weight: 600; color: #595959; }
-        tr:hover { background: #fafafa; }
-        .text-center { text-align: center; }
-        .text-right { text-align: right; }
-        .badge-tax { color: #1890ff; font-weight: bold; background: #e6f7ff; padding: 3px 8px; border-radius: 4px; }
-        .btn-action { border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500; margin-right: 4px; }
-        .btn-view { background: #1890ff; color: white; }
-        .btn-view:hover { background: #40a9ff; }
-        .btn-dl { background: #fa8c16; color: white; }
-        .btn-dl:hover { background: #ffa940; }
-        .btn-xml { background: #8c8c8c; color: white; }
-        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
-        .modal-content { background: #fff; width: 90%; max-width: 850px; max-height: 90vh; border-radius: 8px; padding: 24px; overflow-y: auto; position: relative; }
-        .close-btn { position: absolute; right: 20px; top: 15px; font-size: 24px; cursor: pointer; font-weight: bold; color: #999; }
-        .close-btn:hover { color: #333; }
-        .invoice-header-info { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; background: #fafafa; padding: 15px; border-radius: 6px; margin-bottom: 15px; border: 1px solid #f0f0f0; }
-        .invoice-header-info p { margin: 5px 0; font-size: 14px; }
+        :root{
+            --bg:#f4f6fb; --card:#ffffff; --text:#1f2937; --muted:#6b7280; --line:#eef0f4;
+            --primary:#2563eb; --primary-d:#1d4ed8; --primary-soft:#eaf1ff;
+            --green:#16a34a; --teal:#0d9488; --orange:#f97316; --gray:#64748b; --red:#dc2626;
+            --radius:14px; --shadow:0 1px 2px rgba(16,24,40,.04),0 8px 24px rgba(16,24,40,.06);
+        }
+        *{box-sizing:border-box}
+        body{font-family:"Be Vietnam Pro",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+            background:radial-gradient(1200px 400px at 50% -100px,#dbe7ff 0%,transparent 70%),var(--bg);
+            margin:0;padding:28px 20px;color:var(--text);-webkit-font-smoothing:antialiased}
+        .container{max-width:1280px;margin:0 auto}
+        .card{background:var(--card);padding:28px;border-radius:var(--radius);box-shadow:var(--shadow);border:1px solid #e9ecf3}
+
+        .header{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;
+            padding-bottom:22px;margin-bottom:22px;border-bottom:1px solid var(--line)}
+        .brand{display:flex;align-items:center;gap:14px}
+        .brand-icon{width:46px;height:46px;border-radius:12px;display:grid;place-items:center;font-size:22px;color:#fff;
+            background:linear-gradient(135deg,#3b82f6,#6366f1);box-shadow:0 6px 16px rgba(79,70,229,.35)}
+        h2{margin:0;font-size:21px;font-weight:700;color:#111827;letter-spacing:-.2px}
+        .sub{margin:2px 0 0;font-size:13px;color:var(--muted)}
+        .btn-group{display:flex;gap:10px;flex-wrap:wrap}
+
+        .btn{display:inline-flex;align-items:center;gap:7px;border:none;padding:10px 16px;border-radius:10px;cursor:pointer;
+            font:600 13.5px/1 inherit;font-family:inherit;color:#fff;transition:.18s;white-space:nowrap}
+        .btn:hover{transform:translateY(-1px);box-shadow:0 6px 14px rgba(0,0,0,.14)}
+        .btn:active{transform:none}
+        .btn-export{background:linear-gradient(135deg,#14b8a6,#0d9488)}
+        .btn-reload{background:linear-gradient(135deg,#22c55e,#16a34a)}
+        .btn-clear{background:#fff;color:var(--red);box-shadow:inset 0 0 0 1.5px #fecaca}
+        .btn-clear:hover{background:#fef2f2}
+
+        .status-box{display:flex;align-items:center;gap:8px;padding:12px 16px;border-radius:10px;font-weight:500;margin-bottom:20px;font-size:14px;border:1px solid}
+        .status-info{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8}
+        .status-success{background:#f0fdf4;border-color:#bbf7d0;color:#15803d}
+        .status-error{background:#fef2f2;border-color:#fecaca;color:#b91c1c}
+
+        .filters{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+        .search-wrap{position:relative;flex:1;min-width:260px}
+        .search-wrap .ico{position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:15px;opacity:.6;pointer-events:none}
+        .search-input{width:100%;padding:12px 16px;border:1.5px solid #e5e7eb;border-radius:10px;outline:none;font-size:14.5px;
+            font-family:inherit;background:#fafbfd;color:var(--text);transition:.18s}
+        .search-wrap .search-input{padding-left:40px}
+        .search-input:hover{border-color:#cbd5e1}
+        .search-input:focus{border-color:var(--primary);background:#fff;box-shadow:0 0 0 4px rgba(37,99,235,.12)}
+        .date-input{width:170px}
+
+        .table-wrap{border:1px solid var(--line);border-radius:12px;overflow:auto;max-height:68vh}
+        table{width:100%;border-collapse:separate;border-spacing:0;background:#fff}
+        th,td{padding:13px 16px;text-align:left;font-size:14px;border-bottom:1px solid var(--line)}
+        th{position:sticky;top:0;z-index:2;background:#f8fafc;font-weight:600;color:#475569;font-size:12.5px;
+            text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;border-bottom:1px solid #e5e7eb}
+        tbody tr{transition:background .12s}
+        tbody tr:nth-child(even){background:#fcfdff}
+        tbody tr:hover{background:var(--primary-soft)}
+        tbody tr:last-child td{border-bottom:none}
+        .nowrap{white-space:nowrap}
+        .text-center{text-align:center}
+        .text-right{text-align:right}
+        .stt{color:var(--muted);font-variant-numeric:tabular-nums}
+        .inv-no{font-weight:700;color:#111827;font-variant-numeric:tabular-nums}
+        .seller{font-weight:600;color:#1f2937}
+        .amount{font-weight:700;color:var(--primary-d);font-variant-numeric:tabular-nums}
+        .amount.zero{color:#9ca3af;font-weight:500}
+        .badge-tax{display:inline-block;color:var(--primary-d);font-weight:600;background:var(--primary-soft);
+            padding:4px 10px;border-radius:999px;font-size:13px;font-variant-numeric:tabular-nums}
+
+        .actions{display:flex;gap:6px;justify-content:center;flex-wrap:nowrap}
+        .btn-action{border:none;padding:7px 12px;border-radius:8px;cursor:pointer;font:600 12.5px/1 inherit;font-family:inherit;
+            transition:.15s;white-space:nowrap;color:#fff}
+        .btn-action:hover{filter:brightness(1.08);transform:translateY(-1px)}
+        .btn-action:disabled{opacity:.45;cursor:not-allowed;transform:none;filter:none}
+        .btn-view{background:var(--primary)}
+        .btn-dl{background:var(--orange)}
+        .btn-xml{background:var(--gray)}
+
+        .pager{display:flex;gap:14px;align-items:center;justify-content:center;margin-top:18px;font-size:13.5px;color:var(--muted)}
+        .pager .btn-action{padding:8px 14px}
+
+        .empty{padding:48px 20px;text-align:center;color:var(--muted)}
+        .empty .big{font-size:34px;margin-bottom:6px}
+
+        .modal{display:none;position:fixed;z-index:1000;inset:0;background:rgba(15,23,42,.55);backdrop-filter:blur(4px);
+            justify-content:center;align-items:center;padding:16px}
+        .modal-content{background:#fff;width:100%;max-width:900px;max-height:92vh;border-radius:16px;padding:28px;overflow-y:auto;
+            position:relative;box-shadow:0 24px 60px rgba(0,0,0,.3);animation:pop .18s ease-out}
+        @keyframes pop{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
+        .modal-title{margin:0 0 18px;color:#111827;font-size:18px;font-weight:700;padding-right:40px}
+        .close-btn{position:absolute;right:18px;top:18px;width:34px;height:34px;display:grid;place-items:center;border-radius:50%;
+            font-size:22px;cursor:pointer;color:#6b7280;background:#f3f4f6;transition:.15s;line-height:1}
+        .close-btn:hover{background:#fee2e2;color:var(--red)}
+        .invoice-header-info{display:grid;grid-template-columns:1fr 1fr;gap:20px;background:#f8fafc;padding:18px;border-radius:12px;margin-bottom:18px;border:1px solid var(--line)}
+        .invoice-header-info p{margin:6px 0;font-size:14px;line-height:1.5}
+        .invoice-header-info b{color:#374151}
+        .section-title{margin:18px 0 10px;color:#374151;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+        .modal .table-wrap{max-height:none}
+        .total-box{margin-top:18px;margin-left:auto;max-width:460px;background:linear-gradient(135deg,#eff6ff,#eef2ff);
+            border:1px solid #dbeafe;padding:16px 18px;border-radius:12px;text-align:right}
+        .total-box p{margin:5px 0;font-size:14px}
+        .total-box .grand{color:var(--primary-d);font-size:17px;margin-top:10px;padding-top:10px;border-top:1px dashed #bfdbfe}
+        .total-box .words{font-style:italic;color:var(--muted);font-size:13px}
+
+        @media(max-width:760px){
+            .invoice-header-info{grid-template-columns:1fr}
+            .date-input{flex:1;width:auto}
+            .card{padding:18px}
+        }
     </style>
 </head>
 <body>
@@ -51,11 +123,17 @@
 <div class="container">
     <div class="card">
         <div class="header">
-            <h2>🏢 Tra Cứu Hóa Đơn Nội Bộ (Galaxy Studio)</h2>
+            <div class="brand">
+                <div class="brand-icon">🧾</div>
+                <div>
+                    <h2>Tra Cứu Hóa Đơn Nội Bộ</h2>
+                    <p class="sub">Galaxy Studio · Hóa đơn điện tử đầu vào</p>
+                </div>
+            </div>
             <div class="btn-group">
-                <button class="btn-export" onclick="exportToExcel()">📊 Xuất Excel Tổng</button>
-                <button class="btn-reload" onclick="loadInvoicesFromGitHub()">🔄 Cập Nhật Dữ Liệu Mới</button>
-                <button class="btn-action btn-dl" style="padding:10px 14px" onclick="clearCache()">🗑️ Xóa Cache</button>
+                <button class="btn btn-export" onclick="exportToExcel()">📊 Xuất Excel Tổng</button>
+                <button class="btn btn-reload" onclick="loadInvoicesFromGitHub()">🔄 Cập Nhật Dữ Liệu Mới</button>
+                <button class="btn btn-clear" onclick="clearCache()">🗑️ Xóa Cache</button>
             </div>
         </div>
 
@@ -63,38 +141,41 @@
             ⏳ Đang kết nối kho dữ liệu GitHub...
         </div>
 
-        <div class="search-container">
-            <div style="display:flex;gap:10px;flex-wrap:wrap">
-                <input type="text" id="searchInput" class="search-input" style="flex:1;min-width:260px" placeholder="🔍 Tìm theo Mã số thuế, Tên nhà cung cấp, Số hóa đơn..." oninput="debounceFilter()">
-                <input type="date" id="dateFrom" class="search-input" style="width:160px" onchange="filterTable()" title="Từ ngày">
-                <input type="date" id="dateTo" class="search-input" style="width:160px" onchange="filterTable()" title="Đến ngày">
+        <div class="filters">
+            <div class="search-wrap">
+                <span class="ico">🔍</span>
+                <input type="text" id="searchInput" class="search-input" placeholder="Tìm theo Mã số thuế, Tên nhà cung cấp, Số hóa đơn..." oninput="debounceFilter()">
             </div>
+            <input type="date" id="dateFrom" class="search-input date-input" onchange="filterTable()" title="Từ ngày">
+            <input type="date" id="dateTo" class="search-input date-input" onchange="filterTable()" title="Đến ngày">
         </div>
 
+        <div class="table-wrap">
         <table>
             <thead>
                 <tr>
-                    <th style="width: 50px;" class="text-center">STT</th>
-                    <th style="width: 100px;">Ngày Lập</th>
-                    <th style="width: 140px;">Số Hóa Đơn</th>
-                    <th style="width: 130px;">MST Bán</th>
+                    <th style="width: 60px;" class="text-center">STT</th>
+                    <th style="width: 120px;">Ngày Lập</th>
+                    <th style="width: 190px;">Số Hóa Đơn</th>
+                    <th style="width: 140px;">MST Bán</th>
                     <th>Đơn Vị Bán</th>
                     <th style="width: 140px;" class="text-right">Tổng Tiền (VNĐ)</th>
-                    <th style="width: 190px;" class="text-center">Thao Tác</th>
+                    <th style="width: 230px;" class="text-center">Thao Tác</th>
                 </tr>
             </thead>
             <tbody id="invoiceList">
-                <tr><td colspan="7" class="text-center" style="color:#999; padding: 30px;">Đang tải danh sách...</td></tr>
+                <tr><td colspan="7"><div class="empty"><div class="big">⏳</div>Đang tải danh sách...</div></td></tr>
             </tbody>
         </table>
-        <div id="pager" style="display:flex;gap:10px;align-items:center;justify-content:center;margin-top:15px"></div>
+        </div>
+        <div id="pager" class="pager"></div>
     </div>
 </div>
 
 <div id="viewModal" class="modal">
     <div class="modal-content">
         <span class="close-btn" onclick="closeModal()">&times;</span>
-        <h3 style="margin-top:0; color:#0050b3; border-bottom: 2px solid #1890ff; padding-bottom: 10px;">🧾 CHI TIẾT HÓA ĐƠN ĐIỆN TỬ</h3>
+        <h3 class="modal-title">🧾 Chi tiết hóa đơn điện tử</h3>
         <div id="modalBody"></div>
     </div>
 </div>
@@ -308,7 +389,7 @@
         if (page >= pages) page = pages - 1;
         const tbody = document.getElementById("invoiceList");
         if (!list.length) {
-            tbody.innerHTML = `<tr><td colspan="7" class="text-center" style="color:#999; padding: 30px;">Chưa có dữ liệu hóa đơn.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="7"><div class="empty"><div class="big">📭</div>Không có hóa đơn nào phù hợp.</div></td></tr>`;
             document.getElementById("pager").innerHTML = "";
             return;
         }
@@ -318,22 +399,22 @@
         list.slice(start, start + PAGE_SIZE).forEach((inv, i) => {
             const idx = start + i;
             html.push(`<tr>
-                <td class="text-center">${idx + 1}</td>
-                <td>${inv.date}</td>
-                <td><b>${inv.series ? inv.series + '-' : ''}${inv.number}</b></td>
+                <td class="text-center stt">${idx + 1}</td>
+                <td class="nowrap">${inv.date}</td>
+                <td class="nowrap inv-no">${inv.series ? inv.series + '-' : ''}${inv.number}</td>
                 <td><span class="badge-tax">${inv.sellerTax}</span></td>
-                <td><b>${inv.sellerName}</b></td>
-                <td class="text-right"><b style="color: #0050b3;">${fmt(inv.totalAmount)}</b></td>
-                <td class="text-center">
+                <td class="seller">${inv.sellerName}</td>
+                <td class="text-right nowrap"><span class="amount ${Number(inv.totalAmount) ? '' : 'zero'}">${fmt(inv.totalAmount)}</span></td>
+                <td class="text-center"><div class="actions">
                     <button class="btn-action btn-view" onclick="viewInvoice(${idx})">👁️ Xem</button>
                     <button class="btn-action btn-dl" onclick="downloadPdf(${idx})">📄 PDF</button>
                     <button class="btn-action btn-xml" onclick="downloadXml(${idx})">XML</button>
-                </td></tr>`);
+                </div></td></tr>`);
         });
         tbody.innerHTML = html.join("");
         document.getElementById("pager").innerHTML =
             `<button class="btn-action btn-view" ${page === 0 ? "disabled" : ""} onclick="goPage(${page - 1})">◀ Trước</button>
-             <span>Trang ${page + 1}/${pages} — ${list.length.toLocaleString("vi-VN")} hóa đơn</span>
+             <span>Trang <b>${page + 1}</b>/${pages} · ${list.length.toLocaleString("vi-VN")} hóa đơn</span>
              <button class="btn-action btn-view" ${page >= pages - 1 ? "disabled" : ""} onclick="goPage(${page + 1})">Sau ▶</button>`;
     }
     function goPage(p) { page = p; renderTable(currentList, true); }
@@ -366,7 +447,7 @@
                 </div>
                 <div>
                     <p><b>Mẫu số - Ký hiệu:</b> ${inv.templateCode} - ${inv.series}</p>
-                    <p><b>Số Hóa Đơn:</b> <b style="color:#cf1322; font-size:16px;">${inv.number}</b></p>
+                    <p><b>Số Hóa Đơn:</b> <b style="color:#dc2626; font-size:16px;">${inv.number}</b></p>
                     <p><b>Ngày Lập:</b> ${inv.date}</p>
                     <p><b>Người mua hàng:</b> ${inv.buyerContact || ""}</p>
                     ${inv.buyerName ? `<p><b>Đơn vị mua:</b> ${inv.buyerName}</p>` : ''}
@@ -374,8 +455,8 @@
                 </div>
             </div>
 
-            <h4 style="margin: 15px 0 8px 0; color:#333;">CHI TIẾT HÀNG HÓA / DỊCH VỤ:</h4>
-            <table>
+            <h4 class="section-title">Chi tiết hàng hóa / dịch vụ</h4>
+            <div class="table-wrap"><table>
                 <thead>
                     <tr>
                         <th style="width: 40px;" class="text-center">STT</th>
@@ -390,18 +471,20 @@
                 <tbody>
                     ${itemsHtml || '<tr><td colspan="7" class="text-center">Không có chi tiết dòng hàng</td></tr>'}
                 </tbody>
-            </table>
+            </table></div>
 
-            <div style="text-align: right; margin-top: 15px; background: #e6f7ff; padding: 15px; border-radius: 6px;">
+            <div class="total-box">
                 <p style="margin: 4px 0;">Cộng tiền hàng: <b>${fmt(inv.totalBeforeTax)} VNĐ</b></p>
                 <p style="margin: 4px 0;">Tiền thuế VAT: <b>${fmt(inv.vatAmount)} VNĐ</b></p>
-                <p style="margin: 8px 0 0 0; color: #0050b3; font-size: 18px;"><b>TỔNG CỘNG TIỀN THANH TOÁN: ${fmt(inv.totalAmount)} VNĐ</b></p>
-                ${inv.totalText ? `<p style="margin: 4px 0 0 0; font-style: italic; color: #555;">(Số tiền viết bằng chữ: ${inv.totalText})</p>` : ''}
+                <p class="grand"><b>Tổng thanh toán: ${fmt(inv.totalAmount)} VNĐ</b></p>
+                ${inv.totalText ? `<p class="words">(Bằng chữ: ${inv.totalText})</p>` : ''}
             </div>
         `;
         document.getElementById("viewModal").style.display = "flex";
     }
 
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+    document.getElementById('viewModal').addEventListener('click', e => { if (e.target.id === 'viewModal') closeModal(); });
     function closeModal() {
         document.getElementById("viewModal").style.display = "none";
     }
