@@ -268,6 +268,7 @@
             <button class="chip" onclick="openReport('buyer')">Theo người mua / rạp</button>
             <button class="chip" onclick="openReport('alert')">⚠️ Bất thường</button>
             <button class="chip" onclick="openDebt()">💳 Công nợ / Hạn thanh toán</button>
+            <button class="chip" onclick="openCash()">💸 Dòng tiền theo tuần</button>
         </div>
 
         <div class="summary" id="summary"></div>
@@ -1047,7 +1048,7 @@
         const card = (l, v, sub, cls) => `<div class="sum-card ${cls || ""}"><div class="lbl">${l}</div><div class="val">${v}<small>${sub}</small></div></div>`;
         document.getElementById("reportBody").innerHTML =
             `<div class="rp-head"><div><h3 class="modal-title" style="margin:0">💳 Công nợ & hạn thanh toán</h3><p class="sub">Tính trên toàn bộ ${allInvoices.length.toLocaleString("vi-VN")} hóa đơn · hạn = ngày hóa đơn + số ngày nợ của nhà cung cấp</p></div>
-             <button class="btn btn-export" onclick="exportDebt()">📥 Xuất Excel công nợ</button></div>
+             <div><button class="chip" onclick="openCash()">💸 Dòng tiền theo tuần</button> <button class="btn btn-export" onclick="exportDebt()">📥 Xuất Excel công nợ</button></div></div>
              <div class="summary">${card("Chưa thanh toán", money(sum(un)), "đ · " + un.length + " HĐ")}${card("Quá hạn", `<span class="due-over">${money(sum(over))}</span>`, "đ · " + over.length + " HĐ")}${card("Đến hạn ≤ 7 ngày", money(sum(soon)), "đ · " + soon.length + " HĐ")}${card("Đang xem", money(sum(rows)), "đ · " + rows.length + " HĐ", "main")}</div>
              <div class="filters2">${Object.entries(MODES).map(([k, v]) => `<button class="chip" style="${k === debtMode ? "background:var(--primary);color:#fff;border-color:var(--primary)" : ""}" onclick="debtMode='${k}';renderDebt()">${v}</button>`).join("")}</div>
              <p class="sub" style="margin:0 0 14px">Điều khoản hiện dùng: mặc định <b>${termLbl(debtDefault)}</b>, riêng từng nhà cung cấp cài trong <button class="chip" onclick="openContracts()">📑 Hợp đồng & điều khoản NCC</button></p>
@@ -1065,6 +1066,105 @@
         XLSX.writeFile(wb, `Cong_no_${MODES[debtMode].replace(/\W+/g, "_")}_${ymd(new Date())}.xlsx`);
     }
 
+
+    // ---------- DÒNG TIỀN THEO TUẦN: dự báo chi + phân loại NCC cần thanh toán mỗi tuần ----------
+    let cashWk = 0, cashOver = true, cashOpen = {}, cashWeeks = [];
+    let cashPlan = lsGet("cashPlan", {}), cashBudget = lsGet("cashBudget", {});
+    const CASH_CAT = { "": "Chưa phân loại", now: "Trả đủ", part: "Trả một phần", hold: "Hoãn / xin gia hạn" };
+    const CASH_COL = { "": "transparent", now: "#16a34a", part: "#f59e0b", hold: "#94a3b8" };
+    const cMon = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };
+    const cAdd = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+    const cDm = (d) => `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}`;
+    function isoWk(d) { const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7)); return Math.ceil(((t - Date.UTC(t.getUTCFullYear(), 0, 1)) / 864e5 + 1) / 7); }
+    const cashKey = () => ymd(cAdd(cMon(new Date()), cashWk * 7));
+    function cashGroups() {
+        const t0 = cMon(new Date()), ws = cAdd(t0, cashWk * 7), we = cAdd(ws, 6);
+        const all = debtCalc().filter(r => !r.paid);
+        const sel = all.filter(r => (r.due >= ws && r.due <= we) || (cashOver && r.due < ws));
+        const m = new Map();
+        sel.forEach(r => { const k = r.inv.sellerTax, g = m.get(k) || { mst: k, name: r.inv.sellerName, n: 0, tot: 0, over: 0, items: [], min: 1e9 }; g.n++; g.tot += r.tot; if (r.due < ws) g.over += r.tot; g.min = Math.min(g.min, r.days); g.items.push(r); m.set(k, g); });
+        return { t0, ws, we, all, groups: [...m.values()].sort((a, b) => a.min - b.min) };
+    }
+    function cashPlanOf(g, wk) { const p = cashPlan[wk + "|" + g.mst] || {}, c = p.c || ""; return { c, a: c === "now" ? g.tot : c === "part" ? Math.min(Number(p.a) || 0, g.tot) : 0 }; }
+    function openCash() { cashWk = 0; cashOver = true; renderCash(); document.getElementById("reportModal").style.display = "flex"; }
+    function cashRefresh() { const sc = document.querySelector("#reportModal .modal-content"), st = sc ? sc.scrollTop : 0; renderCash(); if (sc) sc.scrollTop = st; }
+    function cashGo(n) { cashWk = n === 0 ? 0 : Math.max(-26, Math.min(60, cashWk + n)); cashOver = cashWk <= 0; cashRefresh(); }
+    function cashPick(i) { if (i === -1) { cashWk = 0; cashOver = true; } else { cashWk = i; cashOver = i === 0; } cashRefresh(); }
+    function cashToggle(m) { cashOpen[m] = !cashOpen[m]; cashRefresh(); }
+    function cashSetBudget(v) { cashBudget[cashKey()] = Math.max(0, Number(v) || 0); lsSet("cashBudget", cashBudget); cashRefresh(); }
+    function cashSetCat(m, c) { const k = cashKey() + "|" + m; if (!c) delete cashPlan[k]; else cashPlan[k] = { c, a: (cashPlan[k] || {}).a || 0 }; lsSet("cashPlan", cashPlan); cashRefresh(); }
+    function cashSetAmt(m, v) { const k = cashKey() + "|" + m; cashPlan[k] = { c: "part", a: Math.max(0, Number(v) || 0) }; lsSet("cashPlan", cashPlan); cashRefresh(); }
+    function cashAuto() {
+        const { groups } = cashGroups(), wk = cashKey(); let rest = Number(cashBudget[wk]) || 0; const unlimited = !rest;
+        if (!groups.length) return;
+        if (groups.some(g => cashPlan[wk + "|" + g.mst]) && !confirm("Ghi đè phân loại hiện có của tuần này?")) return;
+        groups.forEach(g => { // đã sắp theo mức khẩn: quá hạn lâu nhất trước
+            const k = wk + "|" + g.mst;
+            if (unlimited || rest >= g.tot) { cashPlan[k] = { c: "now" }; rest -= g.tot; }
+            else if (rest > 0) { cashPlan[k] = { c: "part", a: Math.floor(rest) }; rest = 0; }
+            else cashPlan[k] = { c: "hold" };
+        });
+        lsSet("cashPlan", cashPlan); cashRefresh();
+    }
+    function cashPaid(m) {
+        const g = cashGroups().groups.find(x => x.mst === m); if (!g) return;
+        if (!confirm(`Ghi nhận ĐÃ THANH TOÁN ${g.n} hóa đơn của ${g.name} (${money(g.tot)} đ)?\nCác hóa đơn này sẽ chuyển sang "Đã thanh toán" trong báo cáo công nợ.`)) return;
+        g.items.forEach(r => { debtPaid[invKey(r.inv)] = 1; });
+        lsSet("debtPaid", debtPaid); delete cashPlan[cashKey() + "|" + m]; lsSet("cashPlan", cashPlan); cashRefresh();
+    }
+    function renderCash() {
+        const { t0, ws, we, all, groups } = cashGroups(), wk = ymd(ws);
+        const B = [{ i: -1, l: "Quá hạn (trước tuần này)", tot: 0, n: 0 }];
+        for (let i = 0; i <= 7; i++) { const a = cAdd(t0, i * 7); B.push({ i, l: `Tuần ${isoWk(a)} · ${cDm(a)}–${cDm(cAdd(a, 6))}${i === 0 ? " (tuần này)" : ""}`, tot: 0, n: 0 }); }
+        B.push({ i: 8, l: "Sau 8 tuần", tot: 0, n: 0 });
+        all.forEach(r => { const k = Math.round((cMon(r.due) - t0) / (7 * 864e5)), b = B[k < 0 ? 0 : k > 7 ? 9 : k + 1]; b.tot += r.tot; b.n++; });
+        cashWeeks = B;
+        const mx = Math.max(...B.map(b => b.tot), 1);
+        const tot = groups.reduce((a, g) => a + g.tot, 0), over = groups.reduce((a, g) => a + g.over, 0);
+        const planned = groups.reduce((a, g) => a + cashPlanOf(g, wk).a, 0), budget = Number(cashBudget[wk]) || 0, left = budget - planned;
+        const unclass = groups.filter(g => !cashPlanOf(g, wk).c).length;
+        const card = (l, v, sub, cls) => `<div class="sum-card ${cls || ""}"><div class="lbl">${l}</div><div class="val">${v}<small>${sub}</small></div></div>`;
+        const chart = B.map(b => { const cur = b.i === cashWk, click = b.i < 8;
+            return `<div class="bar-row" style="${click ? "cursor:pointer" : ""}" ${click ? `onclick="cashPick(${b.i})"` : ""}><div class="bar-lbl" style="width:230px;${cur ? "font-weight:700;color:var(--primary)" : ""}" title="${esc(b.l)}">${cur ? "▶ " : ""}${esc(b.l)}</div><div class="bar-track"><div class="bar-fill" style="width:${(b.tot / mx * 100).toFixed(1)}%;${b.i === -1 ? "background:linear-gradient(90deg,#ef4444,#dc2626)" : ""}"></div></div><div class="bar-val">${money(b.tot)}</div><div class="sub" style="width:54px;margin:0">${b.n} HĐ</div></div>`; }).join("");
+        const rowsHtml = groups.map(g => {
+            const p = cashPlanOf(g, wk), open = cashOpen[g.mst], m = esc(g.mst);
+            const detail = open ? `<tr><td colspan="7" style="background:var(--bg)"><table style="font-size:13px"><thead><tr><th>Số hóa đơn</th><th>Ngày HĐ</th><th>Hạn TT</th><th>Tình trạng</th><th class="text-right">Tiền</th></tr></thead><tbody>${g.items.sort((a, b) => a.days - b.days).map(r => `<tr><td class="nowrap inv-no">${esc((r.inv.series ? r.inv.series + "-" : "") + r.inv.number)}</td><td class="nowrap">${r.inv.date}</td><td class="nowrap">${ymd(r.due)}</td><td class="nowrap">${dueLbl(r.days)}</td><td class="text-right amount">${money(r.tot)}</td></tr>`).join("")}</tbody></table></td></tr>` : "";
+            return `<tr style="box-shadow:inset 4px 0 0 ${CASH_COL[p.c]}"><td class="seller" style="cursor:pointer" data-m="${m}" onclick="cashToggle(this.dataset.m)">${open ? "▾" : "▸"} ${esc(g.name)}<br><span class="badge-tax">${m}</span></td>
+              <td class="text-right">${g.n}</td><td class="text-right nowrap">${g.over ? `<span class="due-over">${money(g.over)}</span>` : "—"}</td><td class="text-right nowrap amount">${money(g.tot)}</td>
+              <td><select class="search-input term-in" data-m="${m}" onchange="cashSetCat(this.dataset.m,this.value)">${Object.entries(CASH_CAT).map(([k, v]) => `<option value="${k}" ${p.c === k ? "selected" : ""}>${v}</option>`).join("")}</select></td>
+              <td class="text-right nowrap">${p.c === "part" ? `<input type="number" min="0" max="${g.tot}" class="search-input term-in" style="width:130px" value="${p.a}" data-m="${m}" onchange="cashSetAmt(this.dataset.m,this.value)">` : `<b>${money(p.a)}</b>`}</td>
+              <td><button class="btn-action" style="background:var(--green)" data-m="${m}" onclick="cashPaid(this.dataset.m)" title="Ghi nhận đã chi tiền">✔ Đã trả</button></td></tr>${detail}`;
+        }).join("");
+        document.getElementById("reportBody").innerHTML =
+            `<div class="rp-head"><div><h3 class="modal-title" style="margin:0">💸 Báo cáo dòng tiền chi theo tuần</h3><p class="sub">Dự báo tiền phải trả NCC dựa trên hạn thanh toán (hóa đơn chưa tích "Đã TT") · phân loại NCC để chi mỗi tuần</p></div>
+             <button class="btn btn-export" onclick="exportCash()">📥 Xuất Excel dòng tiền</button></div>
+             <h4 class="section-title">Dự báo chi 8 tuần tới <span class="sub" style="text-transform:none;font-weight:400">(bấm vào dòng để xem tuần đó)</span></h4>
+             <div style="margin-bottom:18px">${chart}</div>
+             <div class="filters2" style="margin-top:6px">
+               <button class="chip" onclick="cashGo(-1)">◀ Tuần trước</button>
+               <b style="font-size:15px">Tuần ${isoWk(ws)} · ${cDm(ws)} → ${cDm(we)}/${we.getFullYear()}${cashWk === 0 ? " (tuần này)" : ""}</b>
+               <button class="chip" onclick="cashGo(1)">Tuần sau ▶</button>
+               ${cashWk !== 0 ? `<button class="chip" onclick="cashGo(0)">Về tuần này</button>` : ""}
+               <span class="sep"></span>
+               <label style="font-size:13px;cursor:pointer"><input type="checkbox" ${cashOver ? "checked" : ""} onchange="cashOver=this.checked;cashRefresh()"> Gộp nợ quá hạn từ các tuần trước</label>
+             </div>
+             <div class="filters2">
+               <label style="font-size:13px;font-weight:600">Tiền có thể chi tuần này (VNĐ):</label>
+               <input type="number" min="0" class="search-input amt" value="${budget || ""}" placeholder="Nhập ngân sách" onchange="cashSetBudget(this.value)">
+               <button class="chip" onclick="cashAuto()" title="Ưu tiên khoản quá hạn lâu nhất. Chưa nhập ngân sách thì đề xuất trả đủ tất cả.">⚡ Gợi ý phân loại theo ngân sách</button>
+               <span class="spacer"></span>${unclass ? `<span class="sub">Còn ${unclass} NCC chưa phân loại</span>` : groups.length ? `<span class="due-ok">✔ Đã phân loại hết</span>` : ""}
+             </div>
+             <div class="summary">${card("Cần trả tuần này", money(tot), "đ · " + groups.length + " NCC", "main")}${card("Trong đó quá hạn", `<span class="${over ? "due-over" : ""}">${money(over)}</span>`, "đ")}${card("Dự kiến chi (đã phân loại)", money(planned), "đ")}${card(left < 0 ? "Thiếu so với ngân sách" : "Còn lại sau khi chi", `<span class="${left < 0 ? "due-over" : "due-ok"}">${budget ? money(Math.abs(left)) : "—"}</span>`, budget ? "đ" : "")}</div>
+             <div class="table-wrap" style="max-height:48vh"><table><thead><tr><th>Nhà cung cấp</th><th class="text-right">Số HĐ</th><th class="text-right">Trong đó quá hạn</th><th class="text-right">Cần trả</th><th>Phân loại</th><th class="text-right">Dự kiến chi</th><th></th></tr></thead><tbody>${rowsHtml || `<tr><td colspan="7"><div class="empty"><div class="big">🎉</div>Tuần này không có khoản nào đến hạn.</div></td></tr>`}</tbody></table></div>
+             <p class="sub" style="margin-top:10px">Bấm tên NCC để xem chi tiết hóa đơn. Nút “Đã trả” sẽ tích đã thanh toán cho toàn bộ hóa đơn của NCC trong danh sách tuần này. Hạn thanh toán chỉnh trong <button class="chip" onclick="openContracts()">📑 Hợp đồng & điều khoản NCC</button></p>`;
+    }
+    function exportCash() {
+        const { ws, we, groups } = cashGroups(), wk = ymd(ws), wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(cashWeeks.map(b => ({ "Kỳ": b.l, "Số hóa đơn": b.n, "Cần chi (VNĐ)": b.tot }))), "Dự báo theo tuần");
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(groups.map(g => { const p = cashPlanOf(g, wk); return { "Nhà cung cấp": g.name, "MST": g.mst, "Số HĐ": g.n, "Quá hạn (VNĐ)": g.over, "Cần trả (VNĐ)": g.tot, "Phân loại": CASH_CAT[p.c], "Dự kiến chi (VNĐ)": p.a, "Ngân sách tuần": Number(cashBudget[wk]) || "" }; })), "Kế hoạch tuần");
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(groups.flatMap(g => g.items.map(r => ({ "Nhà cung cấp": g.name, "MST": g.mst, "Số hóa đơn": (r.inv.series ? r.inv.series + "-" : "") + r.inv.number, "Ngày HĐ": r.inv.date, "Hạn thanh toán": ymd(r.due), "Ngày còn lại (âm = quá hạn)": r.days, "Tổng tiền": r.tot, "Phân loại NCC": CASH_CAT[cashPlanOf(g, wk).c] })))), "Chi tiết HĐ");
+        XLSX.writeFile(wb, `Dong_tien_tuan_${isoWk(ws)}_${ymd(ws)}.xlsx`);
+    }
 
     // ---------- HỢP ĐỒNG & ĐIỀU KHOẢN THANH TOÁN THEO NHÀ CUNG CẤP (file lưu trong trình duyệt này) ----------
     let ctrDocs = {}, ctrView = "";
@@ -1123,12 +1223,12 @@
     }
     function exportSettings() {
         const a = document.createElement("a");
-        a.href = URL.createObjectURL(new Blob([JSON.stringify({ debtTerms, debtDefault, debtPaid }, null, 1)], { type: "application/json" }));
+        a.href = URL.createObjectURL(new Blob([JSON.stringify({ debtTerms, debtDefault, debtPaid, cashPlan, cashBudget }, null, 1)], { type: "application/json" }));
         a.download = `sao_luu_dieu_khoan_${ymd(new Date())}.json`; a.click();
     }
     async function importSettings(f) {
         if (!f) return;
-        try { const d = JSON.parse(await f.text()); debtTerms = d.debtTerms || {}; debtDefault = normTerm(d.debtDefault); debtPaid = d.debtPaid || {}; lsSet("debtTerms", debtTerms); lsSet("debtDefault", debtDefault); lsSet("debtPaid", debtPaid); alert("Đã khôi phục điều khoản và trạng thái thanh toán."); renderContracts(); } catch (e) { alert("File sao lưu không hợp lệ."); }
+        try { const d = JSON.parse(await f.text()); debtTerms = d.debtTerms || {}; debtDefault = normTerm(d.debtDefault); debtPaid = d.debtPaid || {}; cashPlan = d.cashPlan || {}; cashBudget = d.cashBudget || {}; lsSet("cashPlan", cashPlan); lsSet("cashBudget", cashBudget); lsSet("debtTerms", debtTerms); lsSet("debtDefault", debtDefault); lsSet("debtPaid", debtPaid); alert("Đã khôi phục điều khoản và trạng thái thanh toán."); renderContracts(); } catch (e) { alert("File sao lưu không hợp lệ."); }
     }
 
     function setStatus(type, msg) {
