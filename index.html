@@ -733,7 +733,7 @@
     }
 
     async function renderOriginalPdf(inv) {
-        if (!inv.entry) return false;
+        if (!inv.entry || inv.entry.startsWith("_xml/")) return false; // XML đơn lẻ trong gói nén: không có mẫu hiển thị riêng
         const res = await fetch(encodeURI(inv.path));
         if (!res.ok) return false;
         const zip = await JSZip.loadAsync(await res.blob());
