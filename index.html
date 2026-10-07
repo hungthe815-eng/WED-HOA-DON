@@ -8,6 +8,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -347,7 +348,14 @@
         loadInvoicesFromGitHub();
     }
 
-    window.addEventListener('DOMContentLoaded', () => { loadInvoicesFromGitHub(); });
+    let lastInvLoad = Date.now(), invBusy = false;
+    async function autoReloadInvoices() {
+        if (invBusy) return; invBusy = true;
+        try { await loadInvoicesFromGitHub(); } finally { invBusy = false; lastInvLoad = Date.now(); }
+    }
+    window.addEventListener('DOMContentLoaded', () => { invBusy = true; loadInvoicesFromGitHub().finally(() => { invBusy = false; lastInvLoad = Date.now(); }); });
+    // Quay lại tab sau >10 phút thì tự kiểm tra hóa đơn mới (tránh vượt giới hạn GitHub API)
+    document.addEventListener("visibilitychange", () => { if (!document.hidden && Date.now() - lastInvLoad > 600000) autoReloadInvoices(); });
 
     function rebuild(cached) {
         const seen = new Set(), out = [];
@@ -1008,7 +1016,9 @@
 
     // ---------- CÔNG NỢ: hạn thanh toán theo từng nhà cung cấp (lưu trong trình duyệt này) ----------
     const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } };
-    const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+    const SYNC_KEYS = ["debtTerms", "debtDefault", "debtPaid", "cashPlan", "cashBudget", "cashCats", "cashCatOf", "ctrMeta"];
+    let syncMute = false;
+    const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} if (!syncMute && SYNC_KEYS.includes(k)) syncSchedule(); };
     let debtTerms = lsGet("debtTerms", {}), debtPaid = lsGet("debtPaid", {}), debtDefault = normTerm(lsGet("debtDefault", 30)), debtMode = "overdue", debtRows = [], debtSup = [];
     function normTerm(x) { return typeof x === "number" ? { t: "days", n: x } : (x && x.t ? x : { t: "days", n: 30 }); }
     const getTerm = (m) => debtTerms[m] == null ? debtDefault : normTerm(debtTerms[m]);
@@ -1116,7 +1126,7 @@
     function cashGo(n) { cashWk = n === 0 ? 0 : Math.max(-26, Math.min(60, cashWk + n)); cashOver = cashWk <= 0; cashRefresh(); }
     function cashPick(i) { if (i === -1) { cashWk = 0; cashOver = true; } else { cashWk = i; cashOver = i === 0; } cashRefresh(); }
     function cashToggle(m) { cashOpen[m] = !cashOpen[m]; cashRefresh(); }
-    function cashSetBudget(v) { cashBudget[cashKey()] = Math.max(0, Number(v) || 0); lsSet("cashBudget", cashBudget); cashCats = d.cashCats || cashCats; cashCatOf = d.cashCatOf || {}; lsSet("cashCats", cashCats); lsSet("cashCatOf", cashCatOf); expChanged(); cashRefresh(); }
+    function cashSetBudget(v) { cashBudget[cashKey()] = Math.max(0, Number(v) || 0); lsSet("cashBudget", cashBudget); cashRefresh(); }
     function cashSetCat(m, c) { const k = cashKey() + "|" + m; if (!c) delete cashPlan[k]; else cashPlan[k] = { c, a: (cashPlan[k] || {}).a || 0 }; lsSet("cashPlan", cashPlan); cashRefresh(); }
     function cashSetAmt(m, v) { const k = cashKey() + "|" + m; cashPlan[k] = { c: "part", a: Math.max(0, Number(v) || 0) }; lsSet("cashPlan", cashPlan); cashRefresh(); }
     function cashAuto() {
@@ -1207,6 +1217,278 @@
         XLSX.writeFile(wb, `Dong_tien_tuan_${isoWk(ws)}_${ymd(ws)}.xlsx`);
     }
 
+    // ---------- ĐỒNG BỘ DỮ LIỆU GIỮA CÁC MÁY (Microsoft OneDrive / Graph) ----------
+    // Chỉ dữ liệu người dùng chỉnh sửa được đồng bộ. Nguồn hóa đơn DATA/ trên GitHub không bị thay đổi.
+    const MS_CLIENT_ID = "851094b2-b386-4cf5-b843-7fa7746e0e1f";
+    const MS_TENANT_ID = "ceddb091-1086-4891-b8d2-351018879ce4";
+    const MS_REDIRECT_URI = "https://hungthe815-eng.github.io/WED-HOA-DON/";
+    const MS_SCOPES = ["User.Read", "Files.ReadWrite.All"];
+    const ONEDRIVE_SYNC_FOLDER = "HoaDonWebSync";
+    const ONEDRIVE_SYNC_FILE = "sync.json";
+    const SYNC_POLL_MS = 60000;
+    const DEFAULT_CATS = ["Hàng hóa / Nguyên vật liệu", "Mặt bằng / Thuê", "Điện nước / Internet", "Marketing / Quảng cáo", "Sửa chữa / Thiết bị", "Dịch vụ / Thuê ngoài", "Khác"];
+    let syncTimer = null, syncBusy = false, syncDirty = false, syncBadge = null;
+    let graphReady = false, graphAccount = null, graphDriveId = null, graphFolderId = null;
+    let syncFileId = null, syncFileETag = null;
+
+    let ctrMeta = lsGet("ctrMeta", {});   // hợp đồng (thông tin + file trên OneDrive), key = mã hợp đồng
+    const syncState = () => ({ debtTerms, debtDefault, debtPaid, cashPlan, cashBudget, cashCats, cashCatOf, ctrMeta });
+    function ctrFromMeta() {
+        ctrDocs = {};
+        Object.values(ctrMeta).sort((a, b) => String(a.cid).localeCompare(String(b.cid))).forEach(c => { (ctrDocs[c.m] = ctrDocs[c.m] || { id: c.m, contracts: [] }).contracts.push(c); });
+    }
+    const CTR_MAX = 10 * 1024 * 1024;
+    const fileToB64 = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1] || ""); r.onerror = () => rej(r.error); r.readAsDataURL(f); });
+
+    const msalConfig = {
+        auth: { clientId: MS_CLIENT_ID, authority: `https://login.microsoftonline.com/${MS_TENANT_ID}`, redirectUri: MS_REDIRECT_URI },
+        cache: { cacheLocation: "localStorage", storeAuthStateInCookie: false }
+    };
+    const msalApp = new msal.PublicClientApplication(msalConfig);
+
+    async function graphInit() {
+        if (graphReady) return;
+        await msalApp.initialize();
+        const response = await msalApp.handleRedirectPromise();
+        if (response && response.account) msalApp.setActiveAccount(response.account);
+        graphAccount = msalApp.getActiveAccount() || msalApp.getAllAccounts()[0] || null;
+        graphReady = true;
+    }
+    async function graphLogin() {
+        await graphInit();
+        graphAccount = msalApp.getActiveAccount() || msalApp.getAllAccounts()[0] || null;
+        if (!graphAccount) {
+            await msalApp.loginRedirect({ scopes: MS_SCOPES, redirectUri: MS_REDIRECT_URI });
+            return false;
+        }
+        return true;
+    }
+    async function graphToken() {
+        await graphInit();
+        graphAccount = msalApp.getActiveAccount() || msalApp.getAllAccounts()[0] || null;
+        if (!graphAccount) {
+            await msalApp.loginRedirect({ scopes: MS_SCOPES, redirectUri: MS_REDIRECT_URI });
+            return null;
+        }
+        try {
+            const r = await msalApp.acquireTokenSilent({ account: graphAccount, scopes: MS_SCOPES });
+            return r.accessToken;
+        } catch (e) {
+            if (e && (e.name === "InteractionRequiredAuthError" || /interaction_required|login_required/i.test(e.message || ""))) {
+                await msalApp.acquireTokenRedirect({ account: graphAccount, scopes: MS_SCOPES, redirectUri: MS_REDIRECT_URI });
+                return null;
+            }
+            throw e;
+        }
+    }
+    async function graphFetch(url, options = {}) {
+        const token = await graphToken();
+        if (!token) throw new Error("Đang chuyển sang đăng nhập Microsoft...");
+        const headers = new Headers(options.headers || {});
+        headers.set("Authorization", `Bearer ${token}`);
+        if (!headers.has("Accept")) headers.set("Accept", "application/json");
+        return fetch(url, { ...options, headers });
+    }
+    async function graphJson(url, options = {}) {
+        const r = await graphFetch(url, options);
+        if (!r.ok) {
+            let msg = `HTTP ${r.status}`; try { const d = await r.json(); msg = d.error?.message || msg; } catch (e) {}
+            const err = new Error(msg); err.status = r.status; throw err;
+        }
+        return r.json();
+    }
+
+    // Tìm thư mục của chủ OneDrive. Nếu người dùng là người được chia sẻ,
+    // tìm trong sharedWithMe và dùng remoteItem để truy cập đúng drive của chủ.
+    async function findSyncFolder() {
+        if (graphDriveId && graphFolderId) return { driveId: graphDriveId, folderId: graphFolderId };
+        const own = await graphJson("https://graph.microsoft.com/v1.0/me/drive/root:/" + encodeURIComponent(ONEDRIVE_SYNC_FOLDER));
+        if (own && own.id) {
+            graphDriveId = own.parentReference?.driveId || (await graphJson("https://graph.microsoft.com/v1.0/me/drive")).id;
+            graphFolderId = own.id;
+            return { driveId: graphDriveId, folderId: graphFolderId };
+        }
+        throw new Error("Không tìm thấy thư mục HoaDonWebSync trong OneDrive của tài khoản này.");
+    }
+    async function findSyncFolderShared() {
+        if (graphDriveId && graphFolderId) return { driveId: graphDriveId, folderId: graphFolderId };
+        try { return await findSyncFolder(); } catch (e) {}
+        const d = await graphJson("https://graph.microsoft.com/v1.0/me/drive/sharedWithMe?$top=200");
+        const hit = (d.value || []).find(x => x.name === ONEDRIVE_SYNC_FOLDER && x.remoteItem && x.remoteItem.id && x.remoteItem.parentReference?.driveId);
+        if (!hit) throw new Error("Không tìm thấy thư mục HoaDonWebSync. Hãy kiểm tra thư mục đã được chia sẻ cho đúng tài khoản Microsoft chưa.");
+        graphDriveId = hit.remoteItem.parentReference.driveId;
+        graphFolderId = hit.remoteItem.id;
+        return { driveId: graphDriveId, folderId: graphFolderId };
+    }
+    async function ensureGraphFolder() {
+        await graphLogin();
+        return findSyncFolderShared();
+    }
+    async function listSyncFiles() {
+        const { driveId, folderId } = await ensureGraphFolder();
+        return graphJson(`https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(folderId)}/children?$top=200`);
+    }
+    async function getSyncFile() {
+        const list = await listSyncFiles();
+        const item = (list.value || []).find(x => x.name === ONEDRIVE_SYNC_FILE && x.file);
+        if (!item) return null;
+        const { driveId } = await ensureGraphFolder();
+        const r = await graphFetch(`https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(item.id)}/content`);
+        if (!r.ok) { const err = new Error(`Không đọc được sync.json (HTTP ${r.status})`); err.status = r.status; throw err; }
+        const text = await r.text();
+        let data = {}; try { data = text ? JSON.parse(text) : {}; } catch (e) { throw new Error("sync.json không hợp lệ."); }
+        syncFileId = item.id; syncFileETag = item.eTag || null;
+        return { item, data };
+    }
+    async function putSyncFile(data, etag) {
+        const { driveId, folderId } = await ensureGraphFolder();
+        const body = JSON.stringify(data);
+        let url, headers = { "Content-Type": "application/json" };
+        if (syncFileId) {
+            url = `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(syncFileId)}/content`;
+            if (etag) headers["If-Match"] = etag;
+        } else {
+            url = `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(folderId)}:/${encodeURIComponent(ONEDRIVE_SYNC_FILE)}:/content`;
+            headers["If-None-Match"] = "*";
+        }
+        const r = await graphFetch(url, { method: "PUT", headers, body });
+        if (r.status === 412) { const err = new Error("conflict"); err.status = 412; throw err; }
+        if (!r.ok) { let msg = `HTTP ${r.status}`; try { const d = await r.json(); msg = d.error?.message || msg; } catch (e) {} throw new Error(msg); }
+        const item = await r.json();
+        syncFileId = item.id; syncFileETag = item.eTag || null;
+        return item;
+    }
+    async function syncPost(body) {
+        if (body.action === "upload") return ctrUploadB64(body);
+        if (body.action === "delete") return ctrDelete(body.fid);
+        throw new Error("Tác vụ không được hỗ trợ.");
+    }
+    async function ctrUploadB64(body) {
+        const bytes = Uint8Array.from(atob(body.data), c => c.charCodeAt(0));
+        const { driveId, folderId } = await ensureGraphFolder();
+        const safeName = String(body.name || "file").replace(/[\\/:*?"<>|]/g, "_");
+        let item;
+        if (bytes.byteLength <= 4 * 1024 * 1024) {
+            const r = await graphFetch(`https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(folderId)}:/${encodeURIComponent("ctr_" + Date.now() + "_" + safeName)}:/content`, {
+                method: "PUT", headers: { "Content-Type": body.mime || "application/octet-stream" }, body: bytes
+            });
+            if (!r.ok) throw new Error(`Không tải file lên OneDrive (HTTP ${r.status}).`);
+            item = await r.json();
+        } else {
+            const name = "ctr_" + Date.now() + "_" + safeName;
+            const session = await graphJson(`https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(folderId)}:/${encodeURIComponent(name)}:/createUploadSession`, {
+                method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ item: { "@microsoft.graph.conflictBehavior": "rename" } })
+            });
+            const chunk = 320 * 1024;
+            let last;
+            for (let p = 0; p < bytes.length; p += chunk) {
+                const end = Math.min(p + chunk, bytes.length) - 1;
+                const part = bytes.slice(p, end + 1);
+                const rr = await fetch(session.uploadUrl, { method: "PUT", headers: { "Content-Length": String(part.length), "Content-Range": `bytes ${p}-${end}/${bytes.length}` }, body: part });
+                if (!rr.ok && rr.status !== 202) throw new Error(`Không tải file lên OneDrive (HTTP ${rr.status}).`);
+                last = await rr.json().catch(() => null);
+            }
+            item = last;
+        }
+        return { ok: true, fid: `${driveId}|${item.id}` };
+    }
+    async function ctrUpload(f) {
+        if (f.size > CTR_MAX) throw new Error(`File "${f.name}" quá lớn (tối đa 10 MB).`);
+        return ctrUploadB64({ name: f.name, mime: f.type || "application/octet-stream", data: await fileToB64(f) }).then(r => ({ name: f.name, type: f.type, fid: r.fid }));
+    }
+    async function ctrDelete(fid) {
+        if (!fid) return { ok: true };
+        const [driveId, itemId] = String(fid).split("|");
+        if (!driveId || !itemId) return { ok: true };
+        const r = await graphFetch(`https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(itemId)}`, { method: "DELETE" });
+        if (!r.ok && r.status !== 404) throw new Error(`Không xóa được file (HTTP ${r.status}).`);
+        return { ok: true };
+    }
+    async function ctrMigrate() {
+        // Hợp đồng cũ trong IndexedDB -> OneDrive một lần.
+        let recs = []; try { recs = await docOp("readonly", st => st.getAll()); } catch (e) { return; }
+        for (const rec of recs) {
+            for (const c of (rec.contracts || [])) {
+                if (ctrMeta[c.cid]) continue;
+                const up = []; for (const f of (c.files || [])) up.push(await ctrUpload(f));
+                ctrMeta[c.cid] = { cid: c.cid, m: rec.id, no: c.no, title: c.title, value: c.value, from: c.from, to: c.to, note: c.note, files: up };
+            }
+            syncMute = true; try { lsSet("ctrMeta", ctrMeta); } finally { syncMute = false; }
+            await docOp("readwrite", st => st.delete(rec.id));
+        }
+        if (recs.length) ctrFromMeta();
+    }
+    function syncApply(d) {
+        syncMute = true;
+        try {
+            debtTerms = d.debtTerms || {}; debtPaid = d.debtPaid || {}; cashPlan = d.cashPlan || {}; cashBudget = d.cashBudget || {};
+            cashCatOf = d.cashCatOf || {}; if (Array.isArray(d.cashCats)) cashCats = d.cashCats;
+            ctrMeta = d.ctrMeta || {}; ctrFromMeta();
+            if (d.debtDefault) debtDefault = normTerm(d.debtDefault);
+            SYNC_KEYS.forEach(k => lsSet(k, syncState()[k]));
+        } finally { syncMute = false; }
+    }
+    function mergeAll(base, local, server) {
+        const first = base === null, out = {};
+        const J = (x) => JSON.stringify(x);
+        for (const k of SYNC_KEYS) {
+            const L = local[k], S = server[k], B = first ? undefined : (base || {})[k];
+            if (k === "cashCats") {
+                let res = Array.isArray(S) ? S.slice() : (first ? DEFAULT_CATS.slice() : []);
+                const bs = new Set(first ? DEFAULT_CATS : (B || [])), ls = new Set(L || []);
+                const removed = (first || !Array.isArray(S)) ? [] : [...bs].filter(x => !ls.has(x));
+                const added = (L || []).filter(x => !bs.has(x));
+                res = res.filter(x => !removed.includes(x)); added.forEach(x => { if (!res.includes(x)) res.push(x); }); out[k] = res;
+            } else if (k === "debtDefault") out[k] = (S !== undefined && (first || J(L) === J(B))) ? S : L;
+            else {
+                const res = Object.assign({}, S || {}), b = B || {}, l = L || {};
+                for (const id in l) if (J(l[id]) !== J(b[id]) && !(first && id in res)) res[id] = l[id];
+                for (const id in b) if (!(id in l)) delete res[id]; out[k] = res;
+            }
+        }
+        return out;
+    }
+    function syncShow(type, msg) {
+        if (!syncBadge) {
+            syncBadge = document.createElement("div");
+            syncBadge.style.cssText = "position:fixed;right:14px;bottom:14px;z-index:9999;padding:7px 14px;border-radius:999px;font-size:13px;cursor:pointer;background:var(--card,#fff);color:var(--text,#222);border:1px solid var(--border,#ccc);box-shadow:0 2px 10px rgba(0,0,0,.15)";
+            syncBadge.title = "Bấm để đồng bộ ngay"; syncBadge.onclick = () => syncRun(); document.body.appendChild(syncBadge);
+        }
+        syncBadge.textContent = msg; syncBadge.style.borderColor = type === "err" ? "#e11d48" : "";
+    }
+    function syncSchedule() { syncShow("info", "⏳ Chờ đồng bộ..."); clearTimeout(syncTimer); syncTimer = setTimeout(() => syncRun(), 1500); }
+    async function syncRun() {
+        if (syncBusy) { syncDirty = true; return; }
+        syncBusy = true; syncShow("info", "⏳ Đang kết nối OneDrive...");
+        try {
+            await ensureGraphFolder();
+            await ctrMigrate();
+            for (let attempt = 0; attempt < 5; attempt++) {
+                const got = await getSyncFile();
+                const server = got ? (got.data || {}) : {};
+                const base = lsGet("syncBase", null);
+                const merged = mergeAll(base, syncState(), server);
+                if (JSON.stringify(merged) !== JSON.stringify(server) || !got) {
+                    try { await putSyncFile(merged, got ? got.item.eTag : null); }
+                    catch (e) { if (e.status === 412 || e.message === "conflict") { syncFileId = null; syncFileETag = null; continue; } throw e; }
+                }
+                syncApply(merged); try { localStorage.setItem("syncBase", JSON.stringify(merged)); } catch (e) {}
+                try { fillExpFilter(); if (allInvoices.length) filterTable(true); } catch (e) {}
+                syncShow("ok", "☁️ OneDrive đã đồng bộ " + new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }));
+                return;
+            }
+            throw new Error("Có người đang cập nhật dữ liệu cùng lúc, hãy thử lại.");
+        } catch (e) {
+            syncShow("err", "⚠️ Đồng bộ: " + e.message + " (bấm để thử lại)");
+        } finally {
+            syncBusy = false;
+            if (syncDirty) { syncDirty = false; syncSchedule(); }
+        }
+    }
+    window.addEventListener("DOMContentLoaded", () => { setTimeout(() => syncRun(), 300); });
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) syncRun(); });
+    setInterval(() => { if (!document.hidden) syncRun(); }, SYNC_POLL_MS);
+
     // ---------- HỢP ĐỒNG & ĐIỀU KHOẢN THANH TOÁN THEO NHÀ CUNG CẤP (file lưu trong trình duyệt này) ----------
     let ctrDocs = {}, ctrView = "";
     const docOp = async (mode, fn) => { const db = await openDB(); return new Promise((res, rej) => { const rq = fn(db.transaction("docs", mode).objectStore("docs")); rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error); }); };
@@ -1217,7 +1499,8 @@
     };
     const termInputs = (t, fnT, fnN, m) => `<select class="search-input term-in" data-m="${esc(m)}" onchange="${fnT}">${Object.entries(TERM_T).map(([k, v]) => `<option value="${k}" ${t.t === k ? "selected" : ""}>${v}</option>`).join("")}</select> N = <input type="number" min="0" class="search-input term-in" data-m="${esc(m)}" value="${t.n}" onchange="${fnN}">`;
     async function openContracts() {
-        try { (await docOp("readonly", st => st.getAll())).forEach(r => ctrDocs[r.id] = r); } catch (e) {}
+        if (SYNC_URL) ctrFromMeta();
+        else { try { (await docOp("readonly", st => st.getAll())).forEach(r => ctrDocs[r.id] = r); } catch (e) {} }
         ctrView = ""; renderContracts(); document.getElementById("reportModal").style.display = "flex";
     }
     function renderContracts() {
@@ -1248,18 +1531,47 @@
     async function saveCtr(m) {
         const v = (id) => document.getElementById(id).value.trim(), files = [...document.getElementById("cFiles").files];
         if (!v("cNo") && !v("cTitle") && !files.length) { alert("Nhập số/tên hợp đồng hoặc chọn file đính kèm."); return; }
-        const rec = ctrDocs[m] || { id: m, contracts: [] };
-        rec.contracts.push({ cid: "c" + Date.now(), no: v("cNo"), title: v("cTitle"), value: v("cVal"), from: v("cFrom"), to: v("cTo"), note: v("cNote"), files });
-        try { await docOp("readwrite", st => st.put(rec)); ctrDocs[m] = rec; } catch (e) { rec.contracts.pop(); alert("Không lưu được (trình duyệt hết dung lượng?): " + e.message); }
+        const cid = "c" + Date.now(), meta = { cid, m, no: v("cNo"), title: v("cTitle"), value: v("cVal"), from: v("cFrom"), to: v("cTo"), note: v("cNote") };
+        if (SYNC_URL) {
+            try {
+                syncShow("info", "⏳ Đang tải hợp đồng lên Drive...");
+                meta.files = []; for (const f of files) meta.files.push(await ctrUpload(f));
+                ctrMeta[cid] = meta; lsSet("ctrMeta", ctrMeta); ctrFromMeta();
+            } catch (e) { alert("Không lưu được: " + e.message); syncShow("err", "⚠️ Tải hợp đồng thất bại"); }
+        } else {
+            const rec = ctrDocs[m] || { id: m, contracts: [] };
+            rec.contracts.push({ ...meta, files });
+            try { await docOp("readwrite", st => st.put(rec)); ctrDocs[m] = rec; } catch (e) { rec.contracts.pop(); alert("Không lưu được (trình duyệt hết dung lượng?): " + e.message); }
+        }
         renderContracts();
     }
     async function delCtr(m, cid) {
         if (!confirm("Xóa hợp đồng này và các file đính kèm?")) return;
-        const rec = ctrDocs[m]; rec.contracts = rec.contracts.filter(c => c.cid !== cid);
-        await docOp("readwrite", st => st.put(rec)); renderContracts();
+        if (SYNC_URL) {
+            const c = ctrMeta[cid]; delete ctrMeta[cid]; lsSet("ctrMeta", ctrMeta); ctrFromMeta();
+            ((c && c.files) || []).forEach(f => { if (f.fid) syncPost({ action: "delete", fid: f.fid }).catch(() => {}); });
+        } else {
+            const rec = ctrDocs[m]; rec.contracts = rec.contracts.filter(c => c.cid !== cid);
+            await docOp("readwrite", st => st.put(rec));
+        }
+        renderContracts();
     }
-    function dlCtr(m, cid, k) {
+    async function dlCtr(m, cid, k) {
         const fl = ctrDocs[m].contracts.find(c => c.cid === cid).files[k], a = document.createElement("a");
+        if (fl.fid) {
+            try {
+                syncShow("info", "⏳ Đang tải file...");
+                const [driveId, itemId] = String(fl.fid || "").split("|");
+                if (!driveId || !itemId) throw new Error("Mã file OneDrive không hợp lệ");
+                const r = await graphFetch(`https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(itemId)}/content`);
+                if (!r.ok) throw new Error(`Không tải được file (HTTP ${r.status})`);
+                const blob = await r.blob();
+                a.href = URL.createObjectURL(blob); a.download = fl.name; a.click();
+                setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+                syncShow("ok", "☁️ Đã tải " + fl.name);
+            } catch (e) { alert("Không tải được file: " + e.message); }
+            return;
+        }
         a.href = URL.createObjectURL(fl); a.download = fl.name; a.click();
     }
     function exportSettings() {
@@ -1269,7 +1581,7 @@
     }
     async function importSettings(f) {
         if (!f) return;
-        try { const d = JSON.parse(await f.text()); debtTerms = d.debtTerms || {}; debtDefault = normTerm(d.debtDefault); debtPaid = d.debtPaid || {}; cashPlan = d.cashPlan || {}; cashBudget = d.cashBudget || {}; lsSet("cashPlan", cashPlan); lsSet("cashBudget", cashBudget); lsSet("debtTerms", debtTerms); lsSet("debtDefault", debtDefault); lsSet("debtPaid", debtPaid); alert("Đã khôi phục điều khoản và trạng thái thanh toán."); renderContracts(); } catch (e) { alert("File sao lưu không hợp lệ."); }
+        try { const d = JSON.parse(await f.text()); debtTerms = d.debtTerms || {}; debtDefault = normTerm(d.debtDefault); debtPaid = d.debtPaid || {}; cashPlan = d.cashPlan || {}; cashBudget = d.cashBudget || {}; if (Array.isArray(d.cashCats)) cashCats = d.cashCats; cashCatOf = d.cashCatOf || {}; lsSet("cashCats", cashCats); lsSet("cashCatOf", cashCatOf); expChanged(); lsSet("cashPlan", cashPlan); lsSet("cashBudget", cashBudget); lsSet("debtTerms", debtTerms); lsSet("debtDefault", debtDefault); lsSet("debtPaid", debtPaid); alert("Đã khôi phục điều khoản và trạng thái thanh toán."); renderContracts(); } catch (e) { alert("File sao lưu không hợp lệ."); }
     }
 
     function setStatus(type, msg) {
