@@ -320,7 +320,7 @@
     let currentList = [];      // danh sách đang hiển thị (sau lọc)
     let page = 0;
     let PAGE_SIZE = 100;
-    const CACHE_VERSION = 1;   // tăng số này nếu sửa cách đọc XML để buộc đọc lại
+    const CACHE_VERSION = 2;   // tăng số này nếu sửa cách đọc XML để buộc đọc lại
     const CONCURRENCY = 8;
 
     // ---------- IndexedDB cache: mỗi file DATA lưu 1 bản ghi {path, sha, v, invoices} ----------
@@ -357,12 +357,16 @@
     document.addEventListener("visibilitychange", () => { if (!document.hidden && Date.now() - lastInvLoad > 600000) autoReloadInvoices(); });
 
     function rebuild(cached) {
-        const seen = new Set(), out = [];
+        // Cùng 1 hóa đơn có thể có nhiều file (vd. _tongHop tải lần đầu, _dungLai hoặc XML gốc tải lần sau).
+        // Giữ bản đầy đủ nhất: có dòng hàng > XML gốc > _dungLai > _tongHop.
+        const score = (inv) => (inv.items && inv.items.length ? 100 : 0) + (/_tongHop/i.test(inv.path) ? 0 : /_dungLai/i.test(inv.path) ? 1 : 2);
+        const best = new Map();
         cached.forEach(rec => rec.invoices.forEach(inv => {
             const k = `${inv.sellerTax}|${inv.series}|${inv.number}`;
-            if (!seen.has(k)) { seen.add(k); out.push(inv); }
+            const old = best.get(k);
+            if (!old || score(inv) > score(old)) best.set(k, inv);
         }));
-        allInvoices = out;
+        allInvoices = [...best.values()];
         filterTable(true);
     }
 
@@ -473,8 +477,16 @@
             const q = (n, s) => { const e = n.querySelector(s); return e ? e.textContent.trim() : ""; };
             const items = [];
             xml.querySelectorAll("HHDVu, HHDang").forEach(node => {
-                const name = q(node, "THHDVu, TTen");
-                if (!name) return;
+                const amount = q(node, "ThTien, TT");
+                let name = q(node, "THHDVu, TTen");
+                if (!name && !amount) return;                       // dòng trống hoàn toàn
+                if (!name) name = "(Không ghi tên hàng hóa)";       // vd. hóa đơn nước/điện ghi theo từng mức thuế suất
+                const vat = q(node, "TSuat");
+                let vatAmt = q(node, "TThue");
+                if (!vatAmt && amount) {                            // dòng không có tiền thuế riêng -> tính theo thuế suất
+                    const rate = parseFloat(vat);
+                    if (!isNaN(rate)) vatAmt = String(Math.round(Number(amount) * rate / 100));
+                }
                 items.push({
                     tc: q(node, "TChat") || "1",
                     name: name,
@@ -483,11 +495,19 @@
                     qty: q(node, "SLuong, SL"),
                     price: q(node, "DGia, DG"),
                     discount: q(node, "STCKhau, STCKhai, CK"),
-                    amount: q(node, "ThTien, TT"),
-                    vat: q(node, "TSuat"),
-                    vatAmt: q(node, "TThue")
+                    amount: amount,
+                    vat: vat,
+                    vatAmt: vatAmt
                 });
             });
+            if (!items.length) {                                    // không có dòng hàng -> dùng bảng tổng hợp theo thuế suất
+                xml.querySelectorAll("LTSuat").forEach(node => {
+                    const amount = q(node, "ThTien");
+                    if (!amount) return;
+                    items.push({ tc: "1", name: "(Tổng hợp theo thuế suất)", code: "", unit: "", qty: "", price: "", discount: "",
+                        amount: amount, vat: q(node, "TSuat"), vatAmt: q(node, "TThue") });
+                });
+            }
 
             return {
                 path: path, entry: entry,
