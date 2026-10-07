@@ -8,7 +8,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -1217,22 +1216,14 @@
         XLSX.writeFile(wb, `Dong_tien_tuan_${isoWk(ws)}_${ymd(ws)}.xlsx`);
     }
 
-    // ---------- ĐỒNG BỘ DỮ LIỆU GIỮA CÁC MÁY (Microsoft OneDrive / Graph) ----------
-    // Chỉ dữ liệu người dùng chỉnh sửa được đồng bộ. Nguồn hóa đơn DATA/ trên GitHub không bị thay đổi.
-    const MS_CLIENT_ID = "851094b2-b386-4cf5-b843-7fa7746e0e1f";
-    const MS_TENANT_ID = "ceddb091-1086-4891-b8d2-351018879ce4";
-    const MS_REDIRECT_URI = "https://hungthe815-eng.github.io/WED-HOA-DON/";
-    const MS_SCOPES = ["User.Read", "Files.ReadWrite.All"];
-    const ONEDRIVE_SYNC_FOLDER = "HoaDonWebSync";
-    const ONEDRIVE_SYNC_FILE = "sync.json";
+    // ---------- ĐỒNG BỘ DỮ LIỆU GIỮA CÁC MÁY (Google Apps Script) ----------
+    // Dán link Web App của Apps Script vào đây. Để trống = tắt đồng bộ, chạy như cũ (chỉ lưu trong trình duyệt).
+    const SYNC_URL = "";
     const SYNC_POLL_MS = 60000;
-    const SYNC_URL = true;   // cờ "đang bật đồng bộ" (code hợp đồng dùng cờ này)
     const DEFAULT_CATS = ["Hàng hóa / Nguyên vật liệu", "Mặt bằng / Thuê", "Điện nước / Internet", "Marketing / Quảng cáo", "Sửa chữa / Thiết bị", "Dịch vụ / Thuê ngoài", "Khác"];
     let syncTimer = null, syncBusy = false, syncDirty = false, syncBadge = null;
-    let graphReady = false, graphAccount = null, graphDriveId = null, graphFolderId = null;
-    let syncFileId = null, syncFileETag = null;
 
-    let ctrMeta = lsGet("ctrMeta", {});   // hợp đồng (thông tin + file trên OneDrive), key = mã hợp đồng
+    let ctrMeta = lsGet("ctrMeta", {});   // hợp đồng (chỉ thông tin + mã file trên Drive), key = mã hợp đồng
     const syncState = () => ({ debtTerms, debtDefault, debtPaid, cashPlan, cashBudget, cashCats, cashCatOf, ctrMeta });
     function ctrFromMeta() {
         ctrDocs = {};
@@ -1240,184 +1231,18 @@
     }
     const CTR_MAX = 10 * 1024 * 1024;
     const fileToB64 = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1] || ""); r.onerror = () => rej(r.error); r.readAsDataURL(f); });
-
-    const msalConfig = {
-        auth: { clientId: MS_CLIENT_ID, authority: `https://login.microsoftonline.com/${MS_TENANT_ID}`, redirectUri: MS_REDIRECT_URI },
-        cache: { cacheLocation: "localStorage", storeAuthStateInCookie: false }
-    };
-    let msalApp = null;
-    async function loadMsalLib() {
-        if (window.msal && window.msal.PublicClientApplication) return;
-        await new Promise((res) => {
-            const sc = document.createElement("script");
-            sc.src = "https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js";
-            sc.onload = res; sc.onerror = res; document.head.appendChild(sc);
-        });
-        if (!(window.msal && window.msal.PublicClientApplication))
-            throw new Error("Không tải được thư viện đăng nhập Microsoft (mạng/tiện ích chặn quảng cáo đang chặn alcdn.msauth.net và cdn.jsdelivr.net?)");
-    }
-
-    async function graphInit() {
-        if (graphReady) return;
-        if (!msalApp) { await loadMsalLib(); msalApp = new msal.PublicClientApplication(msalConfig); }
-        await msalApp.initialize();
-        const response = await msalApp.handleRedirectPromise();
-        if (response && response.account) msalApp.setActiveAccount(response.account);
-        graphAccount = msalApp.getActiveAccount() || msalApp.getAllAccounts()[0] || null;
-        graphReady = true;
-    }
-    async function graphLogin() {
-        await graphInit();
-        graphAccount = msalApp.getActiveAccount() || msalApp.getAllAccounts()[0] || null;
-        if (!graphAccount) {
-            await msalApp.loginRedirect({ scopes: MS_SCOPES, redirectUri: MS_REDIRECT_URI });
-            return false;
-        }
-        return true;
-    }
-    async function graphToken() {
-        await graphInit();
-        graphAccount = msalApp.getActiveAccount() || msalApp.getAllAccounts()[0] || null;
-        if (!graphAccount) {
-            await msalApp.loginRedirect({ scopes: MS_SCOPES, redirectUri: MS_REDIRECT_URI });
-            return null;
-        }
-        try {
-            const r = await msalApp.acquireTokenSilent({ account: graphAccount, scopes: MS_SCOPES });
-            return r.accessToken;
-        } catch (e) {
-            if (e && (e.name === "InteractionRequiredAuthError" || /interaction_required|login_required/i.test(e.message || ""))) {
-                await msalApp.acquireTokenRedirect({ account: graphAccount, scopes: MS_SCOPES, redirectUri: MS_REDIRECT_URI });
-                return null;
-            }
-            throw e;
-        }
-    }
-    async function graphFetch(url, options = {}) {
-        const token = await graphToken();
-        if (!token) throw new Error("Đang chuyển sang đăng nhập Microsoft...");
-        const headers = new Headers(options.headers || {});
-        headers.set("Authorization", `Bearer ${token}`);
-        if (!headers.has("Accept")) headers.set("Accept", "application/json");
-        return fetch(url, { ...options, headers });
-    }
-    async function graphJson(url, options = {}) {
-        const r = await graphFetch(url, options);
-        if (!r.ok) {
-            let msg = `HTTP ${r.status}`; try { const d = await r.json(); msg = d.error?.message || msg; } catch (e) {}
-            const err = new Error(msg); err.status = r.status; throw err;
-        }
-        return r.json();
-    }
-
-    // Tìm thư mục của chủ OneDrive. Nếu người dùng là người được chia sẻ,
-    // tìm trong sharedWithMe và dùng remoteItem để truy cập đúng drive của chủ.
-    async function findSyncFolder() {
-        if (graphDriveId && graphFolderId) return { driveId: graphDriveId, folderId: graphFolderId };
-        const own = await graphJson("https://graph.microsoft.com/v1.0/me/drive/root:/" + encodeURIComponent(ONEDRIVE_SYNC_FOLDER));
-        if (own && own.id) {
-            graphDriveId = own.parentReference?.driveId || (await graphJson("https://graph.microsoft.com/v1.0/me/drive")).id;
-            graphFolderId = own.id;
-            return { driveId: graphDriveId, folderId: graphFolderId };
-        }
-        throw new Error("Không tìm thấy thư mục HoaDonWebSync trong OneDrive của tài khoản này.");
-    }
-    async function findSyncFolderShared() {
-        if (graphDriveId && graphFolderId) return { driveId: graphDriveId, folderId: graphFolderId };
-        try { return await findSyncFolder(); } catch (e) {}
-        const d = await graphJson("https://graph.microsoft.com/v1.0/me/drive/sharedWithMe?$top=200");
-        const hit = (d.value || []).find(x => x.name === ONEDRIVE_SYNC_FOLDER && x.remoteItem && x.remoteItem.id && x.remoteItem.parentReference?.driveId);
-        if (!hit) throw new Error("Không tìm thấy thư mục HoaDonWebSync. Hãy kiểm tra thư mục đã được chia sẻ cho đúng tài khoản Microsoft chưa.");
-        graphDriveId = hit.remoteItem.parentReference.driveId;
-        graphFolderId = hit.remoteItem.id;
-        return { driveId: graphDriveId, folderId: graphFolderId };
-    }
-    async function ensureGraphFolder() {
-        await graphLogin();
-        return findSyncFolderShared();
-    }
-    async function listSyncFiles() {
-        const { driveId, folderId } = await ensureGraphFolder();
-        return graphJson(`https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(folderId)}/children?$top=200`);
-    }
-    async function getSyncFile() {
-        const list = await listSyncFiles();
-        const item = (list.value || []).find(x => x.name === ONEDRIVE_SYNC_FILE && x.file);
-        if (!item) return null;
-        const { driveId } = await ensureGraphFolder();
-        const r = await graphFetch(`https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(item.id)}/content`);
-        if (!r.ok) { const err = new Error(`Không đọc được sync.json (HTTP ${r.status})`); err.status = r.status; throw err; }
-        const text = await r.text();
-        let data = {}; try { data = text ? JSON.parse(text) : {}; } catch (e) { throw new Error("sync.json không hợp lệ."); }
-        syncFileId = item.id; syncFileETag = item.eTag || null;
-        return { item, data };
-    }
-    async function putSyncFile(data, etag) {
-        const { driveId, folderId } = await ensureGraphFolder();
-        const body = JSON.stringify(data);
-        let url, headers = { "Content-Type": "application/json" };
-        if (syncFileId) {
-            url = `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(syncFileId)}/content`;
-            if (etag) headers["If-Match"] = etag;
-        } else {
-            url = `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(folderId)}:/${encodeURIComponent(ONEDRIVE_SYNC_FILE)}:/content`;
-            headers["If-None-Match"] = "*";
-        }
-        const r = await graphFetch(url, { method: "PUT", headers, body });
-        if (r.status === 412) { const err = new Error("conflict"); err.status = 412; throw err; }
-        if (!r.ok) { let msg = `HTTP ${r.status}`; try { const d = await r.json(); msg = d.error?.message || msg; } catch (e) {} throw new Error(msg); }
-        const item = await r.json();
-        syncFileId = item.id; syncFileETag = item.eTag || null;
-        return item;
-    }
     async function syncPost(body) {
-        if (body.action === "upload") return ctrUploadB64(body);
-        if (body.action === "delete") return ctrDelete(body.fid);
-        throw new Error("Tác vụ không được hỗ trợ.");
-    }
-    async function ctrUploadB64(body) {
-        const bytes = Uint8Array.from(atob(body.data), c => c.charCodeAt(0));
-        const { driveId, folderId } = await ensureGraphFolder();
-        const safeName = String(body.name || "file").replace(/[\\/:*?"<>|]/g, "_");
-        let item;
-        if (bytes.byteLength <= 4 * 1024 * 1024) {
-            const r = await graphFetch(`https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(folderId)}:/${encodeURIComponent("ctr_" + Date.now() + "_" + safeName)}:/content`, {
-                method: "PUT", headers: { "Content-Type": body.mime || "application/octet-stream" }, body: bytes
-            });
-            if (!r.ok) throw new Error(`Không tải file lên OneDrive (HTTP ${r.status}).`);
-            item = await r.json();
-        } else {
-            const name = "ctr_" + Date.now() + "_" + safeName;
-            const session = await graphJson(`https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(folderId)}:/${encodeURIComponent(name)}:/createUploadSession`, {
-                method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ item: { "@microsoft.graph.conflictBehavior": "rename" } })
-            });
-            const chunk = 320 * 1024;
-            let last;
-            for (let p = 0; p < bytes.length; p += chunk) {
-                const end = Math.min(p + chunk, bytes.length) - 1;
-                const part = bytes.slice(p, end + 1);
-                const rr = await fetch(session.uploadUrl, { method: "PUT", headers: { "Content-Length": String(part.length), "Content-Range": `bytes ${p}-${end}/${bytes.length}` }, body: part });
-                if (!rr.ok && rr.status !== 202) throw new Error(`Không tải file lên OneDrive (HTTP ${rr.status}).`);
-                last = await rr.json().catch(() => null);
-            }
-            item = last;
-        }
-        return { ok: true, fid: `${driveId}|${item.id}` };
+        const r = await (await fetch(SYNC_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ pass: syncPass(), ...body }) })).json();
+        if (!r.ok) throw new Error(r.error || "lỗi máy chủ");
+        return r;
     }
     async function ctrUpload(f) {
         if (f.size > CTR_MAX) throw new Error(`File "${f.name}" quá lớn (tối đa 10 MB).`);
-        return ctrUploadB64({ name: f.name, mime: f.type || "application/octet-stream", data: await fileToB64(f) }).then(r => ({ name: f.name, type: f.type, fid: r.fid }));
+        const r = await syncPost({ action: "upload", name: f.name, mime: f.type || "application/octet-stream", data: await fileToB64(f) });
+        return { name: f.name, type: f.type, fid: r.fid };
     }
-    async function ctrDelete(fid) {
-        if (!fid) return { ok: true };
-        const [driveId, itemId] = String(fid).split("|");
-        if (!driveId || !itemId) return { ok: true };
-        const r = await graphFetch(`https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(itemId)}`, { method: "DELETE" });
-        if (!r.ok && r.status !== 404) throw new Error(`Không xóa được file (HTTP ${r.status}).`);
-        return { ok: true };
-    }
+    // Hợp đồng đã lưu cục bộ từ trước (IndexedDB) -> đưa lên Drive một lần
     async function ctrMigrate() {
-        // Hợp đồng cũ trong IndexedDB -> OneDrive một lần.
         let recs = []; try { recs = await docOp("readonly", st => st.getAll()); } catch (e) { return; }
         for (const rec of recs) {
             for (const c of (rec.contracts || [])) {
@@ -1440,6 +1265,9 @@
             SYNC_KEYS.forEach(k => lsSet(k, syncState()[k]));
         } finally { syncMute = false; }
     }
+
+    // Trộn 3 chiều: base (lần đồng bộ trước) – local (máy này) – server. Chỉ áp phần máy này đã THAY ĐỔI lên server,
+    // nên hai người sửa hai chỗ khác nhau thì không ghi đè nhau.
     function mergeAll(base, local, server) {
         const first = base === null, out = {};
         const J = (x) => JSON.stringify(x);
@@ -1450,56 +1278,74 @@
                 const bs = new Set(first ? DEFAULT_CATS : (B || [])), ls = new Set(L || []);
                 const removed = (first || !Array.isArray(S)) ? [] : [...bs].filter(x => !ls.has(x));
                 const added = (L || []).filter(x => !bs.has(x));
-                res = res.filter(x => !removed.includes(x)); added.forEach(x => { if (!res.includes(x)) res.push(x); }); out[k] = res;
-            } else if (k === "debtDefault") out[k] = (S !== undefined && (first || J(L) === J(B))) ? S : L;
-            else {
+                res = res.filter(x => !removed.includes(x));
+                added.forEach(x => { if (!res.includes(x)) res.push(x); });
+                out[k] = res;
+            } else if (k === "debtDefault") {
+                out[k] = (S !== undefined && (first || J(L) === J(B))) ? S : L;
+            } else {
                 const res = Object.assign({}, S || {}), b = B || {}, l = L || {};
                 for (const id in l) if (J(l[id]) !== J(b[id]) && !(first && id in res)) res[id] = l[id];
-                for (const id in b) if (!(id in l)) delete res[id]; out[k] = res;
+                for (const id in b) if (!(id in l)) delete res[id];
+                out[k] = res;
             }
         }
         return out;
     }
+
     function syncShow(type, msg) {
+        if (!SYNC_URL) return;
         if (!syncBadge) {
             syncBadge = document.createElement("div");
             syncBadge.style.cssText = "position:fixed;right:14px;bottom:14px;z-index:9999;padding:7px 14px;border-radius:999px;font-size:13px;cursor:pointer;background:var(--card,#fff);color:var(--text,#222);border:1px solid var(--border,#ccc);box-shadow:0 2px 10px rgba(0,0,0,.15)";
-            syncBadge.title = "Bấm để đồng bộ ngay"; syncBadge.onclick = () => syncRun(); document.body.appendChild(syncBadge);
+            syncBadge.title = "Bấm để đồng bộ ngay"; syncBadge.onclick = () => syncRun();
+            document.body.appendChild(syncBadge);
         }
         syncBadge.textContent = msg; syncBadge.style.borderColor = type === "err" ? "#e11d48" : "";
     }
-    function syncSchedule() { syncShow("info", "⏳ Chờ đồng bộ..."); clearTimeout(syncTimer); syncTimer = setTimeout(() => syncRun(), 1500); }
-    async function syncRun() {
+    const syncPass = (reset) => {
+        let p = reset ? "" : (localStorage.getItem("syncPass") || "");
+        if (!p) { p = (prompt("Nhập mã đồng bộ (do quản trị viên cấp):") || "").trim(); if (p) localStorage.setItem("syncPass", p); }
+        return p;
+    };
+    function syncSchedule() { if (!SYNC_URL) return; syncShow("info", "⏳ Chờ đồng bộ..."); clearTimeout(syncTimer); syncTimer = setTimeout(syncRun, 1500); }
+
+    async function syncRun(retryPass) {
+        if (!SYNC_URL) return;
         if (syncBusy) { syncDirty = true; return; }
-        syncBusy = true; syncShow("info", "⏳ Đang kết nối OneDrive...");
+        syncBusy = true; syncShow("info", "⏳ Đang đồng bộ...");
         try {
-            await ensureGraphFolder();
+            let pass = syncPass(retryPass === true);
+            if (!pass) throw new Error("chưa nhập mã đồng bộ");
             await ctrMigrate();
-            for (let attempt = 0; attempt < 5; attempt++) {
-                const got = await getSyncFile();
-                const server = got ? (got.data || {}) : {};
-                const base = lsGet("syncBase", null);
+            for (let attempt = 0; attempt < 4; attempt++) {
+                const r = await (await fetch(`${SYNC_URL}?pass=${encodeURIComponent(pass)}&t=${Date.now()}`)).json();
+                if (!r.ok) { if (r.error === "pass") { localStorage.removeItem("syncPass"); throw new Error("sai mã đồng bộ"); } throw new Error(r.error || "lỗi máy chủ"); }
+                const server = r.data || {}, base = lsGet("syncBase", null);
                 const merged = mergeAll(base, syncState(), server);
-                if (JSON.stringify(merged) !== JSON.stringify(server) || !got) {
-                    try { await putSyncFile(merged, got ? got.item.eTag : null); }
-                    catch (e) { if (e.status === 412 || e.message === "conflict") { syncFileId = null; syncFileETag = null; continue; } throw e; }
+                if (JSON.stringify(merged) !== JSON.stringify(server)) {
+                    const w = await (await fetch(SYNC_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ pass, baseRev: r.rev, data: merged }) })).json();
+                    if (!w.ok) { if (w.error === "conflict") continue; throw new Error(w.error || "không ghi được"); }
                 }
-                syncApply(merged); try { localStorage.setItem("syncBase", JSON.stringify(merged)); } catch (e) {}
+                syncApply(merged);
+                try { localStorage.setItem("syncBase", JSON.stringify(merged)); } catch (e) {}
                 try { fillExpFilter(); if (allInvoices.length) filterTable(true); } catch (e) {}
-                syncShow("ok", "☁️ OneDrive đã đồng bộ " + new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }));
+                syncShow("ok", "☁️ Đã đồng bộ " + new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }));
                 return;
             }
-            throw new Error("Có người đang cập nhật dữ liệu cùng lúc, hãy thử lại.");
+            throw new Error("nhiều người sửa cùng lúc, thử lại sau");
         } catch (e) {
-            syncShow("err", "⚠️ Đồng bộ: " + e.message + " (bấm để thử lại)");
+            syncShow("err", "⚠️ Lỗi đồng bộ: " + e.message + " (bấm để thử lại)");
         } finally {
             syncBusy = false;
             if (syncDirty) { syncDirty = false; syncSchedule(); }
         }
     }
-    window.addEventListener("DOMContentLoaded", () => { setTimeout(() => syncRun(), 300); });
-    document.addEventListener("visibilitychange", () => { if (!document.hidden) syncRun(); });
-    setInterval(() => { if (!document.hidden) syncRun(); }, SYNC_POLL_MS);
+    if (SYNC_URL) {
+        window.addEventListener("DOMContentLoaded", () => syncRun());
+        document.addEventListener("visibilitychange", () => { if (!document.hidden) syncRun(); });
+        setInterval(() => { if (!document.hidden) syncRun(); }, SYNC_POLL_MS);
+    }
 
     // ---------- HỢP ĐỒNG & ĐIỀU KHOẢN THANH TOÁN THEO NHÀ CUNG CẤP (file lưu trong trình duyệt này) ----------
     let ctrDocs = {}, ctrView = "";
@@ -1573,13 +1419,10 @@
         if (fl.fid) {
             try {
                 syncShow("info", "⏳ Đang tải file...");
-                const [driveId, itemId] = String(fl.fid || "").split("|");
-                if (!driveId || !itemId) throw new Error("Mã file OneDrive không hợp lệ");
-                const r = await graphFetch(`https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(itemId)}/content`);
-                if (!r.ok) throw new Error(`Không tải được file (HTTP ${r.status})`);
-                const blob = await r.blob();
-                a.href = URL.createObjectURL(blob); a.download = fl.name; a.click();
-                setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+                const r = await (await fetch(`${SYNC_URL}?action=file&id=${encodeURIComponent(fl.fid)}&pass=${encodeURIComponent(syncPass())}`)).json();
+                if (!r.ok) throw new Error(r.error || "không tải được");
+                const bin = atob(r.data), u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+                a.href = URL.createObjectURL(new Blob([u8], { type: r.mime })); a.download = fl.name; a.click();
                 syncShow("ok", "☁️ Đã tải " + fl.name);
             } catch (e) { alert("Không tải được file: " + e.message); }
             return;
