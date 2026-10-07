@@ -1226,6 +1226,7 @@
     const ONEDRIVE_SYNC_FOLDER = "HoaDonWebSync";
     const ONEDRIVE_SYNC_FILE = "sync.json";
     const SYNC_POLL_MS = 60000;
+    const SYNC_URL = true;   // cờ "đang bật đồng bộ" (code hợp đồng dùng cờ này)
     const DEFAULT_CATS = ["Hàng hóa / Nguyên vật liệu", "Mặt bằng / Thuê", "Điện nước / Internet", "Marketing / Quảng cáo", "Sửa chữa / Thiết bị", "Dịch vụ / Thuê ngoài", "Khác"];
     let syncTimer = null, syncBusy = false, syncDirty = false, syncBadge = null;
     let graphReady = false, graphAccount = null, graphDriveId = null, graphFolderId = null;
@@ -1244,10 +1245,21 @@
         auth: { clientId: MS_CLIENT_ID, authority: `https://login.microsoftonline.com/${MS_TENANT_ID}`, redirectUri: MS_REDIRECT_URI },
         cache: { cacheLocation: "localStorage", storeAuthStateInCookie: false }
     };
-    const msalApp = new msal.PublicClientApplication(msalConfig);
+    let msalApp = null;
+    async function loadMsalLib() {
+        if (window.msal && window.msal.PublicClientApplication) return;
+        await new Promise((res) => {
+            const sc = document.createElement("script");
+            sc.src = "https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js";
+            sc.onload = res; sc.onerror = res; document.head.appendChild(sc);
+        });
+        if (!(window.msal && window.msal.PublicClientApplication))
+            throw new Error("Không tải được thư viện đăng nhập Microsoft (mạng/tiện ích chặn quảng cáo đang chặn alcdn.msauth.net và cdn.jsdelivr.net?)");
+    }
 
     async function graphInit() {
         if (graphReady) return;
+        if (!msalApp) { await loadMsalLib(); msalApp = new msal.PublicClientApplication(msalConfig); }
         await msalApp.initialize();
         const response = await msalApp.handleRedirectPromise();
         if (response && response.account) msalApp.setActiveAccount(response.account);
