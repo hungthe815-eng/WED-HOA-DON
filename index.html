@@ -380,16 +380,32 @@
         filterTable(true);
     }
 
+    // SHA-1 theo cách Git tính blob: sha1("blob <độ dài>\0" + nội dung)
+    async function gitBlobSha(buf) {
+        const h = new TextEncoder().encode(`blob ${buf.byteLength}\0`), all = new Uint8Array(h.length + buf.byteLength);
+        all.set(h); all.set(new Uint8Array(buf), h.length);
+        return [...new Uint8Array(await crypto.subtle.digest("SHA-1", all))].map(b => b.toString(16).padStart(2, "0")).join("");
+    }
+    // Tải file và so với sha GitHub báo: tránh lưu cache bản CŨ (trình duyệt giữ cache ~10 phút / GitHub Pages chưa kịp cập nhật)
+    async function fetchVerified(f) {
+        let buf = null;
+        for (let i = 0; i < 2; i++) {
+            const res = await fetch(encodeURI(f.path) + (i ? `?t=${Date.now()}` : ""), i ? { cache: "reload" } : undefined);
+            if (!res.ok) throw new Error(res.status);
+            buf = await res.arrayBuffer();
+            if (!f.sha || !(window.crypto && crypto.subtle) || (await gitBlobSha(buf)) === f.sha) return buf;
+        }
+        f.unverified = true;   // vẫn hiển thị nhưng KHÔNG lưu cache, lần sau tải lại
+        return buf;
+    }
     async function fetchAndParse(f) {
-        const url = encodeURI(f.path); // cùng domain GitHub Pages: nhanh, không bị giới hạn API
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(res.status);
+        const buf = await fetchVerified(f);
         const list = [];
         if (/\.xml$/i.test(f.path)) {
-            const inv = parseXml(await res.text(), f.path, null);
+            const inv = parseXml(new TextDecoder("utf-8").decode(buf), f.path, null);
             if (inv) list.push(inv);
         } else {
-            const zip = await JSZip.loadAsync(await res.blob());
+            const zip = await JSZip.loadAsync(buf);
             for (const name in zip.files) {
                 if (!/\.xml$/i.test(name)) continue;
                 const inv = parseXml(await zip.files[name].async("string"), f.path, name);
@@ -426,16 +442,17 @@
 
             const todo = files.filter(f => !cached.has(f.path) || cached.get(f.path).sha !== f.sha);
             const total = todo.length;
-            let done = 0, failed = 0; failedPaths.clear();
+            let done = 0, failed = 0, unver = 0; failedPaths.clear();
             if (total === 0) { rebuild(cached); setStatus("success", `✅ ${allInvoices.length} hóa đơn (không có file mới).`); return; }
 
             const worker = async () => {
                 while (todo.length) {
                     const f = todo.shift();
                     try {
-                        const rec = { path: f.path, sha: f.sha, v: CACHE_VERSION, invoices: await fetchAndParse(f) };
+                        const rec = { path: f.path, sha: "", v: CACHE_VERSION, invoices: await fetchAndParse(f) };
+                        if (f.unverified) unver++; else rec.sha = f.sha;
                         cached.set(f.path, rec); failedPaths.delete(f.path);
-                        if (db) dbPut(db, rec).catch(() => {});
+                        if (db && !f.unverified) dbPut(db, rec).catch(() => {});
                     } catch (e) { failed++; failedPaths.add(f.path); }
                     done++;
                     if (done % 25 === 0 || done === total) {
@@ -448,6 +465,7 @@
             rebuild(cached);
             setStatus(failed ? "error" : "success",
                 `✅ ${allInvoices.length} hóa đơn (mới tải ${total - failed} file)` + (failed ? ` — ⚠️ ${failed} file lỗi, bấm "Cập Nhật" để thử lại` : "") +
+                (unver ? ` — ⚠️ ${unver} file chưa khớp bản mới nhất trên GitHub (Pages có thể đang cập nhật), bấm "Cập Nhật" sau 1–2 phút` : "") +
                 (tree.truncated ? " — ⚠️ danh sách file quá lớn, GitHub cắt bớt" : ""));
         } catch (err) {
             setStatus(cached.size ? "success" : "error", cached.size
