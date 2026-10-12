@@ -268,6 +268,7 @@
             <button class="chip" onclick="openReport('alert')">⚠️ Bất thường</button>
             <button class="chip" onclick="openDebt()">💳 Công nợ / Hạn thanh toán</button>
             <button class="chip" onclick="openCash()">💸 Dòng tiền theo tuần</button>
+            <button class="chip" onclick="openRecon()">🔍 Đối soát số liệu</button>
         </div>
 
         <div class="summary" id="summary"></div>
@@ -356,16 +357,25 @@
     // Quay lại tab sau >10 phút thì tự kiểm tra hóa đơn mới (tránh vượt giới hạn GitHub API)
     document.addEventListener("visibilitychange", () => { if (!document.hidden && Date.now() - lastInvLoad > 600000) autoReloadInvoices(); });
 
+    let reconInfo = { files: 0, noInv: [], dups: [], byDate: new Map() }, failedPaths = new Set(), reconDay = "";
     function rebuild(cached) {
         // Cùng 1 hóa đơn có thể có nhiều file (vd. _tongHop tải lần đầu, _dungLai hoặc XML gốc tải lần sau).
         // Giữ bản đầy đủ nhất: có dòng hàng > XML gốc > _dungLai > _tongHop.
         const score = (inv) => (inv.items && inv.items.length ? 100 : 0) + (/_tongHop/i.test(inv.path) ? 0 : /_dungLai/i.test(inv.path) ? 1 : 2);
-        const best = new Map();
-        cached.forEach(rec => rec.invoices.forEach(inv => {
-            const k = `${inv.sellerTax}|${inv.series}|${inv.number}`;
-            const old = best.get(k);
-            if (!old || score(inv) > score(old)) best.set(k, inv);
-        }));
+        const best = new Map(), noInv = [], dupsRaw = [], byDate = new Map();
+        cached.forEach(rec => {
+            if (!rec.invoices.length) noInv.push(rec.path);
+            rec.invoices.forEach(inv => {
+                const k = `${inv.sellerTax}|${inv.series}|${inv.number}`;
+                const old = best.get(k), d = byDate.get(inv.date) || { rec: 0, uniq: 0 };
+                d.rec++; byDate.set(inv.date, d);
+                if (!old) best.set(k, inv);
+                else if (score(inv) > score(old)) { dupsRaw.push({ k, lose: old }); best.set(k, inv); }
+                else dupsRaw.push({ k, lose: inv });
+            });
+        });
+        best.forEach(inv => { const d = byDate.get(inv.date); if (d) d.uniq++; });
+        reconInfo = { files: cached.size, noInv, dups: dupsRaw.map(x => ({ lose: x.lose, win: best.get(x.k) })), byDate };
         allInvoices = [...best.values()];
         filterTable(true);
     }
@@ -416,7 +426,7 @@
 
             const todo = files.filter(f => !cached.has(f.path) || cached.get(f.path).sha !== f.sha);
             const total = todo.length;
-            let done = 0, failed = 0;
+            let done = 0, failed = 0; failedPaths.clear();
             if (total === 0) { rebuild(cached); setStatus("success", `✅ ${allInvoices.length} hóa đơn (không có file mới).`); return; }
 
             const worker = async () => {
@@ -424,9 +434,9 @@
                     const f = todo.shift();
                     try {
                         const rec = { path: f.path, sha: f.sha, v: CACHE_VERSION, invoices: await fetchAndParse(f) };
-                        cached.set(f.path, rec);
+                        cached.set(f.path, rec); failedPaths.delete(f.path);
                         if (db) dbPut(db, rec).catch(() => {});
-                    } catch (e) { failed++; }
+                    } catch (e) { failed++; failedPaths.add(f.path); }
                     done++;
                     if (done % 25 === 0 || done === total) {
                         rebuild(cached);
@@ -1365,6 +1375,36 @@
         window.addEventListener("DOMContentLoaded", () => syncRun());
         document.addEventListener("visibilitychange", () => { if (!document.hidden) syncRun(); });
         setInterval(() => { if (!document.hidden) syncRun(); }, SYNC_POLL_MS);
+    }
+
+    // ---------- ĐỐI SOÁT: số file trong DATA ↔ số hóa đơn hiển thị ----------
+    const fileOf = (inv) => (inv.path || "").split("/").pop() + (inv.entry && !/^_xml\//.test(inv.entry) ? "  ›  " + inv.entry.split("/").pop() : "");
+    function openRecon() { renderRecon(); document.getElementById("reportModal").style.display = "flex"; }
+    function renderRecon() {
+        const r = reconInfo, d = r.byDate.get(reconDay), lim = 300;
+        const dups = reconDay ? r.dups.filter(x => x.lose.date === reconDay) : r.dups;
+        const card = (l, v, sub, cls) => `<div class="sum-card ${cls || ""}"><div class="lbl">${l}</div><div class="val">${v}<small>${sub}</small></div></div>`;
+        const dayMsg = reconDay ? (d ? `Ngày lập <b>${reconDay}</b>: đọc được <b>${d.rec}</b> bản ghi hóa đơn từ file → hiển thị <b>${d.uniq}</b> hóa đơn duy nhất (gộp <b>${d.rec - d.uniq}</b> bản trùng).` : `Không có hóa đơn nào lập ngày ${reconDay}.`) : "";
+        const trs = (arr, f) => arr.slice(0, lim).map(f).join("") + (arr.length > lim ? `<tr><td colspan="6" class="sub">… còn ${arr.length - lim} dòng nữa, xem đầy đủ trong file Excel.</td></tr>` : "");
+        document.getElementById("reportBody").innerHTML =
+            `<div class="rp-head"><div><h3 class="modal-title" style="margin:0">🔍 Đối soát số file ↔ số hóa đơn</h3><p class="sub">Vì sao số hóa đơn trên web ít hơn số file trong DATA? Mỗi hóa đơn được tính theo <b>MST người bán + ký hiệu + số hóa đơn</b>, nhiều file cùng hóa đơn chỉ hiện 1 lần.</p></div>
+             <button class="btn btn-export" onclick="exportRecon()">📥 Xuất Excel đối soát</button></div>
+             <div class="summary">${card("File đã đọc", r.files, "file/gói")}${card("Hóa đơn hiển thị", allInvoices.length, "duy nhất", "main")}${card("Bản trùng đã gộp", r.dups.length, "bản")}${card("File không đọc ra HĐ", `<span class="${r.noInv.length ? "due-over" : ""}">${r.noInv.length}</span>`, "file")}${card("File lỗi tải", `<span class="${failedPaths.size ? "due-over" : ""}">${failedPaths.size}</span>`, "file")}</div>
+             <div class="filters2"><label style="font-size:13px;font-weight:600">Kiểm tra theo ngày lập hóa đơn:</label><input type="date" class="search-input" value="${reconDay}" onchange="reconDay=this.value;renderRecon()"> ${reconDay ? `<button class="chip" onclick="reconDay='';renderRecon()">✖ Bỏ ngày</button>` : ""}<span class="sub" style="margin:0">Lưu ý: ngày ở đây là <b>ngày lập hóa đơn</b> trong XML, không phải ngày tải file về.</span></div>
+             ${dayMsg ? `<p style="margin:8px 0;font-size:14px">${dayMsg}</p>` : ""}
+             <h4 class="section-title">Bản trùng đã gộp (${dups.length})</h4>
+             <div class="table-wrap" style="max-height:34vh"><table><thead><tr><th>File bị gộp</th><th>File được giữ</th><th>NCC</th><th>Ký hiệu</th><th>Số HĐ</th><th>Ngày lập</th></tr></thead><tbody>${trs(dups, x => `<tr><td class="inv-no">${esc(fileOf(x.lose))}</td><td class="inv-no">${esc(fileOf(x.win))}</td><td class="seller">${esc(x.win.sellerName)}</td><td>${esc(x.win.series)}</td><td class="inv-no">${esc(x.win.number)}</td><td class="nowrap">${esc(x.win.date)}</td></tr>`) || `<tr><td colspan="6" class="sub">Không có.</td></tr>`}</tbody></table></div>
+             <h4 class="section-title">File không đọc ra hóa đơn (${r.noInv.length}) <span class="sub" style="text-transform:none;font-weight:400">— thiếu MST người bán hoặc số hóa đơn trong XML, hoặc gói không có XML</span></h4>
+             <div class="table-wrap" style="max-height:24vh"><table><tbody>${trs(r.noInv, p => `<tr><td class="inv-no" colspan="6">${esc(p)}</td></tr>`) || `<tr><td class="sub">Không có.</td></tr>`}</tbody></table></div>
+             ${failedPaths.size ? `<h4 class="section-title">File lỗi tải (${failedPaths.size}) <span class="sub" style="text-transform:none;font-weight:400">— bấm “Cập Nhật” để thử lại</span></h4><div class="table-wrap" style="max-height:20vh"><table><tbody>${trs([...failedPaths], p => `<tr><td class="inv-no" colspan="6">${esc(p)}</td></tr>`)}</tbody></table></div>` : ""}`;
+    }
+    function exportRecon() {
+        const r = reconInfo, wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(r.dups.map(x => ({ "File bị gộp": fileOf(x.lose), "File được giữ": fileOf(x.win), "NCC": x.win.sellerName, "MST": x.win.sellerTax, "Ký hiệu": x.win.series, "Số HĐ": x.win.number, "Ngày lập": x.win.date }))), "Bản trùng đã gộp");
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(r.noInv.map(p => ({ "File không đọc ra hóa đơn": p }))), "File không đọc được");
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([...failedPaths].map(p => ({ "File lỗi tải": p }))), "File lỗi tải");
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([...r.byDate].sort().map(([k, v]) => ({ "Ngày lập": k, "Bản ghi từ file": v.rec, "Hóa đơn duy nhất": v.uniq, "Đã gộp": v.rec - v.uniq }))), "Theo ngày lập");
+        XLSX.writeFile(wb, `Doi_soat_${ymd(new Date())}.xlsx`);
     }
 
     // ---------- HỢP ĐỒNG & ĐIỀU KHOẢN THANH TOÁN THEO NHÀ CUNG CẤP (file lưu trong trình duyệt này) ----------
