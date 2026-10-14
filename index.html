@@ -20,9 +20,9 @@
         *{box-sizing:border-box}
         body{font-family:"Be Vietnam Pro",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
             background:radial-gradient(1200px 400px at 50% -100px,#dbe7ff 0%,transparent 70%),var(--bg);
-            margin:0;padding:28px 20px;color:var(--text);-webkit-font-smoothing:antialiased}
-        .container{max-width:1280px;margin:0 auto}
-        .card{background:var(--card);padding:28px;border-radius:var(--radius);box-shadow:var(--shadow);border:1px solid #e9ecf3}
+            margin:0;padding:14px 18px;color:var(--text);-webkit-font-smoothing:antialiased}
+        .container{max-width:none;margin:0}
+        .card{background:var(--card);padding:18px 22px;border-radius:var(--radius);box-shadow:var(--shadow);border:1px solid #e9ecf3}
 
         .header{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;
             padding-bottom:22px;margin-bottom:22px;border-bottom:1px solid var(--line)}
@@ -198,6 +198,21 @@
         html[data-theme="dark"] .bar-track{background:#0f172a}
         @media(max-width:760px){.bar-lbl{width:110px}.bar-val{width:90px}}
         .due-over{color:#dc2626;font-weight:700}.due-soon{color:#ea580c;font-weight:700}.due-ok{color:#16a34a;font-weight:600}
+
+        /* ===== toàn màn hình, tìm theo cột, tick chọn ===== */
+        .cf-row th{background:#f1f5f9;padding:6px 8px;text-transform:none;letter-spacing:0;font-weight:500;z-index:2}
+        .cf{width:100%;min-width:64px;padding:6px 8px;font:500 12px/1.2 inherit;font-family:inherit;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;color:var(--text);outline:none}
+        .cf:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+        .selcell{white-space:nowrap}
+        .selcell input,#selAllPage{width:17px;height:17px;cursor:pointer;vertical-align:middle;accent-color:var(--primary)}
+        .selno{display:none;place-items:center;min-width:22px;height:22px;padding:0 5px;margin-left:5px;border-radius:999px;background:var(--primary);color:#fff;font-size:11.5px;font-weight:700;vertical-align:middle}
+        tbody tr.sel,tbody tr.sel:nth-child(even){background:var(--primary-soft)}
+        .selbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;padding:9px 12px;border-radius:10px;background:#f8fafc;border:1px solid var(--line);font-size:13.5px}
+        .selbar .btn{padding:8px 14px}
+        .selbar button:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none}
+        html[data-theme="dark"] .cf-row th{background:#131d33}
+        html[data-theme="dark"] .cf{background:#0f172a;border-color:#334155;color:var(--text)}
+        html[data-theme="dark"] .selbar{background:#17223a;border-color:#2b3a52}
         .term-in{width:72px;padding:6px 8px;text-align:right}
         details.terms{margin:0 0 16px;border:1px solid var(--line);border-radius:10px;padding:10px 14px}
         details.terms summary{cursor:pointer;font-weight:600;font-size:14px}
@@ -229,6 +244,7 @@
                 <button class="btn btn-reload" onclick="loadInvoicesFromGitHub()">🔄 Cập Nhật Dữ Liệu Mới</button>
                 <button class="btn btn-clear" onclick="clearCache()">🗑️ Xóa Cache</button>
                 <button class="btn btn-theme" id="themeBtn" onclick="toggleTheme()" title="Chế độ sáng/tối">🌙</button>
+                <button class="btn btn-theme" id="fsBtn" onclick="toggleFullscreen()" title="Toàn màn hình">⛶</button>
             </div>
         </div>
 
@@ -273,10 +289,13 @@
 
         <div class="summary" id="summary"></div>
 
-        <div class="table-wrap">
+        <div id="selBar" class="selbar"></div>
+
+        <div class="table-wrap" id="mainWrap">
         <table>
             <thead>
                 <tr>
+                    <th style="width: 46px;" class="text-center"><input type="checkbox" id="selAllPage" onchange="selPage(this.checked)" title="Chọn / bỏ chọn cả trang"></th>
                     <th style="width: 60px;" class="text-center">STT</th>
                     <th style="width: 120px;" data-sort="date">Ngày Lập</th>
                     <th style="width: 180px;" data-sort="number">Số Hóa Đơn</th>
@@ -288,9 +307,21 @@
                     <th style="width: 140px;" class="text-right" data-sort="total">Tổng tiền (VNĐ)</th>
                     <th style="width: 230px;" class="text-center">Thao Tác</th>
                 </tr>
+                <tr class="cf-row">
+                    <th></th><th></th>
+                    <th><input class="cf" id="cf_date" placeholder="07/10 hoặc 2026-10" oninput="debounceFilter()"></th>
+                    <th><input class="cf" id="cf_number" placeholder="Số / ký hiệu" oninput="debounceFilter()"></th>
+                    <th><input class="cf" id="cf_tax" placeholder="MST" oninput="debounceFilter()"></th>
+                    <th><input class="cf" id="cf_seller" placeholder="Tên đơn vị bán" oninput="debounceFilter()"></th>
+                    <th><input class="cf" id="cf_buyer" placeholder="Người mua" oninput="debounceFilter()"></th>
+                    <th class="hm"><input class="cf" id="cf_rate" placeholder="8" oninput="debounceFilter()"></th>
+                    <th class="hm"><input class="cf" id="cf_vat" placeholder=">100000" title="Gõ số, hoặc >, <, >=, <=, hoặc khoảng 1000-5000" oninput="debounceFilter()"></th>
+                    <th><input class="cf" id="cf_total" placeholder=">1000000" title="Gõ số, hoặc >, <, >=, <=, hoặc khoảng 1000000-5000000" oninput="debounceFilter()"></th>
+                    <th class="text-center"><button class="chip reset" onclick="clearColFilters()" title="Xóa tất cả ô tìm theo cột">✖ cột</button></th>
+                </tr>
             </thead>
             <tbody id="invoiceList">
-                <tr><td colspan="10"><div class="empty"><div class="big">⏳</div>Đang tải danh sách...</div></td></tr>
+                <tr><td colspan="11"><div class="empty"><div class="big">⏳</div>Đang tải danh sách...</div></td></tr>
             </tbody>
         </table>
         </div>
@@ -577,8 +608,9 @@
         if (page >= pages) page = pages - 1;
         const tbody = document.getElementById("invoiceList");
         if (!list.length) {
-            tbody.innerHTML = `<tr><td colspan="10"><div class="empty"><div class="big">📭</div>Không có hóa đơn nào phù hợp.</div></td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="11"><div class="empty"><div class="big">📭</div>Không có hóa đơn nào phù hợp.</div></td></tr>`;
             document.getElementById("pager").innerHTML = "";
+            refreshSelUI(); fitTable();
             return;
         }
         const fmt = (v) => v ? Number(v).toLocaleString("vi-VN") : "0";
@@ -586,7 +618,8 @@
         const html = [];
         list.slice(start, start + PAGE_SIZE).forEach((inv, i) => {
             const idx = start + i;
-            html.push(`<tr>
+            html.push(`<tr data-k="${qa(selKey(inv))}" ondblclick="rowDbl(event,${idx})" title="Nhấp đúp để mở hóa đơn">
+                <td class="text-center selcell"><input type="checkbox" onclick="togSel(event,${idx})" title="Tick để chọn in hàng loạt (giữ Shift để chọn cả dải)"><span class="selno"></span></td>
                 <td class="text-center stt">${idx + 1}</td>
                 <td class="nowrap">${inv.date}</td>
                 <td class="nowrap inv-no">${inv.series ? inv.series + '-' : ''}${inv.number}</td>
@@ -603,6 +636,7 @@
                 </div></td></tr>`);
         });
         tbody.innerHTML = html.join("");
+        refreshSelUI(); fitTable();
         document.getElementById("pager").innerHTML =
             `<button class="btn-action btn-view" ${page === 0 ? "disabled" : ""} onclick="goPage(${page - 1})">◀ Trước</button>
              <span>Trang <b>${page + 1}</b>/${pages} · ${list.length.toLocaleString("vi-VN")} hóa đơn</span>
@@ -951,6 +985,7 @@
     }
     function clearFilters() {
         ["searchInput", "dateFrom", "dateTo", "expFilter"].forEach(id => document.getElementById(id).value = "");
+        CF_KEYS.forEach(k => { const el = document.getElementById("cf_" + k); if (el) el.value = ""; });
         filterTable();
     }
     function searchBy(v) {
@@ -981,11 +1016,12 @@
     function filterTable(keepPage) {
         const toks = norm(document.getElementById("searchInput").value).split(/\s+/).filter(Boolean);
         const from = document.getElementById("dateFrom").value, to = document.getElementById("dateTo").value;
-        const expF = document.getElementById("expFilter").value;
+        const expF = document.getElementById("expFilter").value, cf = cfVals();
         const filtered = allInvoices.filter(inv => {
             if (from && inv.date < from) return false;
             if (to && inv.date > to) return false;
             if (expF && (expF === "__none" ? expOf(inv.sellerTax) !== NOCAT : expOf(inv.sellerTax) !== expF)) return false;
+            if (cf && !cfMatch(inv, cf)) return false;
             if (toks.length) { const t = searchText(inv); if (!toks.every(k => t.includes(k))) return false; }
             return true;
         });
@@ -1423,6 +1459,230 @@
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([...failedPaths].map(p => ({ "File lỗi tải": p }))), "File lỗi tải");
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([...r.byDate].sort().map(([k, v]) => ({ "Ngày lập": k, "Bản ghi từ file": v.rec, "Hóa đơn duy nhất": v.uniq, "Đã gộp": v.rec - v.uniq }))), "Theo ngày lập");
         XLSX.writeFile(wb, `Doi_soat_${ymd(new Date())}.xlsx`);
+    }
+
+    // ---------- TÌM THEO TỪNG CỘT ----------
+    const CF_KEYS = ["date", "number", "tax", "seller", "buyer", "rate", "vat", "total"];
+    function cfVals() {
+        const o = {}; let any = false;
+        CF_KEYS.forEach(k => { const el = document.getElementById("cf_" + k), v = el ? el.value.trim() : ""; if (v) { o[k] = v; any = true; } });
+        return any ? o : null;
+    }
+    const parseNum = (s) => Number(String(s).replace(/[.,\s]/g, "")) || 0;
+    function numMatch(n, q) {
+        n = Number(n) || 0; q = q.replace(/\s/g, "");
+        let m = q.match(/^(>=|<=|>|<|=)([\d.,]+)$/);
+        if (m) { const v = parseNum(m[2]); return m[1] === ">" ? n > v : m[1] === "<" ? n < v : m[1] === ">=" ? n >= v : m[1] === "<=" ? n <= v : n === v; }
+        m = q.match(/^([\d.,]+)-([\d.,]+)$/);
+        if (m) return n >= parseNum(m[1]) && n <= parseNum(m[2]);
+        return String(Math.round(n)).includes(q.replace(/[.,]/g, ""));
+    }
+    function cfText(inv, k) {
+        inv._c = inv._c || {};
+        if (inv._c[k] === undefined) {
+            const d = inv.date ? inv.date.split("-").reverse().join("/") : "", se = inv.series || "";
+            inv._c[k] = norm({ date: (inv.date || "") + " " + d, number: se + "-" + inv.number + " " + se + inv.number, tax: inv.sellerTax, seller: inv.sellerName,
+                buyer: (inv.buyerContact || "") + " " + (inv.buyerName || ""), rate: invRate(inv) }[k]);
+        }
+        return inv._c[k];
+    }
+    function cfMatch(inv, cf) {
+        for (const k in cf) {
+            if (k === "vat") { if (!numMatch(inv.vatAmount, cf[k])) return false; }
+            else if (k === "total") { if (!numMatch(inv.totalAmount, cf[k])) return false; }
+            else { const t = cfText(inv, k); if (!norm(cf[k]).split(/\s+/).every(w => t.includes(w))) return false; }
+        }
+        return true;
+    }
+    function clearColFilters() { CF_KEYS.forEach(k => { const el = document.getElementById("cf_" + k); if (el) el.value = ""; }); filterTable(); }
+
+    // ---------- NHẤP ĐÚP MỞ HÓA ĐƠN, TOÀN MÀN HÌNH ----------
+    function rowDbl(e, idx) {
+        if (e.target.closest("button,input,label,.badge-tax")) return;
+        const s = window.getSelection && window.getSelection(); if (s) s.removeAllRanges();
+        viewInvoice(idx);
+    }
+    function fitTable() {
+        const w = document.getElementById("mainWrap"); if (!w) return;
+        w.style.maxHeight = Math.max(360, window.innerHeight - 110) + "px";   // bảng cao gần bằng màn hình; cuộn trang xuống là thấy gần kín
+        const first = w.querySelector("thead tr:first-child");
+        if (first) w.querySelectorAll("thead .cf-row th").forEach(th => th.style.top = first.offsetHeight + "px");
+    }
+    function toggleFullscreen() {
+        if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+        else document.exitFullscreen();
+    }
+    window.addEventListener("resize", fitTable);
+    document.addEventListener("fullscreenchange", () => { const b = document.getElementById("fsBtn"); if (b) b.textContent = document.fullscreenElement ? "🗗" : "⛶"; setTimeout(fitTable, 120); });
+    setTimeout(fitTable, 0);
+
+    // ---------- TICK CHỌN THEO THỨ TỰ ----------
+    let selOrder = [], lastSelIdx = null;
+    const selKey = (i) => `${i.sellerTax}|${i.series}|${i.number}`;
+    function selSet(k, on) { const p = selOrder.indexOf(k); if (on && p < 0) selOrder.push(k); else if (!on && p >= 0) selOrder.splice(p, 1); }
+    function togSel(ev, idx) {
+        const want = ev.target.checked;
+        if (ev.shiftKey && lastSelIdx !== null && lastSelIdx !== idx) {
+            const a = Math.min(lastSelIdx, idx), b = Math.max(lastSelIdx, idx);
+            for (let i = a; i <= b; i++) selSet(selKey(currentList[i]), want);
+        } else selSet(selKey(currentList[idx]), want);
+        lastSelIdx = idx; refreshSelUI();
+    }
+    function selPage(on) {
+        const s = page * PAGE_SIZE;
+        currentList.slice(s, s + PAGE_SIZE).forEach(i => selSet(selKey(i), on));
+        refreshSelUI();
+    }
+    function selAllFiltered() { currentList.forEach(i => selSet(selKey(i), true)); refreshSelUI(); }
+    function selClear() { selOrder = []; lastSelIdx = null; refreshSelUI(); }
+    function selSortByTable() {
+        const pos = new Map(currentList.map((i, ix) => [selKey(i), ix]));
+        selOrder.sort((a, b) => (pos.has(a) ? pos.get(a) : 1e9) - (pos.has(b) ? pos.get(b) : 1e9));
+        refreshSelUI();
+    }
+    function refreshSelUI() {
+        const pos = new Map(selOrder.map((k, i) => [k, i + 1]));
+        const rows = [...document.querySelectorAll("#invoiceList tr[data-k]")];
+        rows.forEach(tr => {
+            const n = pos.get(tr.dataset.k);
+            tr.querySelector("input[type=checkbox]").checked = !!n;
+            tr.classList.toggle("sel", !!n);
+            const sp = tr.querySelector(".selno"); sp.textContent = n || ""; sp.style.display = n ? "inline-grid" : "none";
+        });
+        const h = document.getElementById("selAllPage");
+        if (h) { const c = rows.filter(r => pos.has(r.dataset.k)).length; h.checked = rows.length > 0 && c === rows.length; h.indeterminate = c > 0 && c < rows.length; }
+        const bar = document.getElementById("selBar"); if (!bar) return;
+        const n = selOrder.length;
+        bar.innerHTML = (n ? `<span>✔ Đã chọn <b>${n}</b> hóa đơn — sẽ in đúng theo thứ tự tick (số trong vòng tròn)</span>`
+                           : `<span class="sub" style="margin:0">Tick ô vuông đầu dòng để chọn hóa đơn in hàng loạt · giữ <b>Shift</b> để chọn cả dải · thứ tự tick = thứ tự in</span>`) +
+            `<span class="spacer"></span>
+             <button class="btn btn-reload" ${n ? "" : "disabled"} onclick="bulkPrint()">🖨 In PDF hàng loạt</button>
+             <button class="chip" onclick="selAllFiltered()">Chọn tất cả ${currentList.length.toLocaleString("vi-VN")} đang lọc</button>
+             <button class="chip" ${n ? "" : "disabled"} onclick="selSortByTable()" title="Xếp lại thứ tự chọn theo thứ tự đang hiển thị trong bảng">↕ Xếp theo bảng</button>
+             <button class="chip reset" ${n ? "" : "disabled"} onclick="selClear()">✖ Bỏ chọn</button>`;
+    }
+
+    // ---------- IN PDF HÀNG LOẠT (một lần in, nhiều hóa đơn theo thứ tự tick) ----------
+    let bulkAbort = false;
+    const bulkZips = new Map(), bulkBlobs = new Map();
+    function bulkGetZip(path) {
+        if (!bulkZips.has(path)) bulkZips.set(path, fetch(encodeURI(path)).then(r => { if (!r.ok) throw new Error(r.status); return r.blob(); }).then(b => JSZip.loadAsync(b)));
+        return bulkZips.get(path);
+    }
+    function bulkBlobUrl(zf, key) {   // ảnh mẫu dùng chung: tạo 1 blob URL cho cả gói, không nhúng lại từng hóa đơn
+        if (!bulkBlobs.has(key)) bulkBlobs.set(key, zf.async("blob").then(b => URL.createObjectURL(new Blob([b], { type: "image/jpeg" }))));
+        return bulkBlobs.get(key);
+    }
+    async function bulkCapture(inv) {
+        if (!inv.entry || inv.entry.startsWith("_xml/")) return null;
+        const zip = await bulkGetZip(inv.path);
+        const dir = inv.entry.includes("/") ? inv.entry.slice(0, inv.entry.lastIndexOf("/") + 1) : "";
+        const file = (n) => zip.file(dir + n) || zip.file(n);
+        const htmlFile = file("invoice.html"); if (!htmlFile) return null;
+        let html = await htmlFile.async("string");
+        for (const n of ["viewinvoice-bg.jpg", "sign-check.jpg"]) {
+            const f = file(n); if (!f) continue;
+            const uri = await bulkBlobUrl(f, inv.path + "|" + f.name);
+            html = html.replace(new RegExp("url\\((['\"]?)" + n.replace(/[.-]/g, "\\$&") + "\\1\\)", "g"), () => `url("${uri}")`);
+        }
+        const jsFile = file("details.js");
+        const js = jsFile ? (await jsFile.async("string")).replace(/<\/script/gi, "<\\/script") : "";
+        html = html.replace(/<script[^>]*src=["']details\.js["'][^>]*>\s*<\/script>/i, () => "<script>" + js + "<\/script>");
+        const xmlFile = file("invoice.xml") || zip.file(inv.entry);
+        const xmlText = xmlFile ? await xmlFile.async("string") : "";
+        const frame = document.createElement("iframe");
+        frame.style.cssText = "position:fixed;left:0;top:0;width:794px;height:1123px;border:0;opacity:0;pointer-events:none;z-index:-1;";
+        document.body.appendChild(frame);
+        try {
+            await new Promise((ok, fail) => { frame.onload = ok; frame.onerror = fail; frame.srcdoc = html; });
+            const doc = frame.contentDocument;
+            const qrIn = doc.getElementById("qrcodeContent");
+            for (let t = 0; t < 30; t++) {
+                const box = doc.getElementById("qrcodeTable");
+                if (!qrIn || !qrIn.value || (box && box.children.length)) break;
+                await new Promise(r => setTimeout(r, 100));
+            }
+            injectSignatures(doc, xmlText);
+            fitToA4(doc);
+            await Promise.all(Array.from(doc.images).map(im => im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; })));
+            await new Promise(r => setTimeout(r, 300));
+            let long = false;
+            if (doc.documentElement.scrollHeight > 1130) {   // hóa đơn quá dài: thu nhỏ vừa 1 trang để không bị cắt
+                const el = doc.querySelector(".main-page") || doc.body, H = el.getBoundingClientRect().height;
+                el.style.zoom = Math.max(0.3, (285 * 96 / 25.4) / H * 0.96); long = true;
+            }
+            return { html: "<!DOCTYPE html>" + doc.documentElement.outerHTML.replace(/<script[\s\S]*?<\/script>/gi, ""), long };
+        } finally { frame.remove(); }
+    }
+    function bulkBox() {
+        let b = document.getElementById("bulkBox");
+        if (!b) {
+            b = document.createElement("div"); b.id = "bulkBox";
+            b.style.cssText = "position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:3000;background:#1e293b;color:#fff;padding:12px 18px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.35);display:flex;gap:14px;align-items:center;font-size:14px";
+            b.innerHTML = `<span></span><button class="chip reset" onclick="bulkAbort=true">Hủy</button>`;
+            document.body.appendChild(b);
+        }
+        return b;
+    }
+    async function bulkPrint() {
+        if (!selOrder.length) return;
+        if (selOrder.length > 300 && !confirm(`Đang chọn ${selOrder.length} hóa đơn. In một lượt rất nặng và chậm, nên chia ≤ 200 hóa đơn mỗi lần. Vẫn tiếp tục?`)) return;
+        const byKey = new Map(allInvoices.map(i => [selKey(i), i]));
+        const list = selOrder.map(k => byKey.get(k)).filter(Boolean);
+        bulkAbort = false;
+        const box = bulkBox(), msg = (t) => { box.firstChild.textContent = t; };
+        const res = new Array(list.length); let done = 0, next = 0;
+        msg(`⏳ Đang chuẩn bị hóa đơn 0/${list.length}...`);
+        const worker = async () => {
+            while (!bulkAbort) {
+                const i = next++; if (i >= list.length) return;
+                try { res[i] = await bulkCapture(list[i]); } catch (e) { console.warn("bulk", e); res[i] = null; }
+                done++; msg(`⏳ Đang chuẩn bị hóa đơn ${done}/${list.length}...`);
+            }
+        };
+        await Promise.all([worker(), worker(), worker()]);
+        const cleanup = () => { box.remove(); bulkZips.clear(); bulkBlobs.forEach(p => p.then(u => URL.revokeObjectURL(u))); bulkBlobs.clear(); };
+        if (bulkAbort) return cleanup();
+
+        const title = `HoaDon_hang_loat_${list.length}hd_${ymd(new Date())}`;
+        const host = document.createElement("iframe");
+        host.style.cssText = "position:fixed;left:0;top:0;width:794px;height:1123px;border:0;opacity:0;pointer-events:none;z-index:-1;";
+        document.body.appendChild(host);
+        const hd = host.contentDocument;
+        hd.open();
+        hd.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title><style>
+            *{-webkit-print-color-adjust:exact;print-color-adjust:exact}@page{size:A4;margin:0}
+            html,body{margin:0;padding:0;background:#fff}
+            .pg{width:210mm;height:296mm;overflow:hidden;break-after:page;page-break-after:always}
+            .pg iframe{width:210mm;height:296mm;border:0;display:block}
+            .fb{width:190mm;margin:0 auto;padding:10mm 0;break-after:page;page-break-after:always}
+            .pg:last-child,.fb:last-child{break-after:auto;page-break-after:auto}</style></head><body></body></html>`);
+        hd.close();
+        let fb = 0, longN = 0; const loads = [];
+        res.forEach((r, i) => {
+            if (r) {
+                if (r.long) longN++;
+                const d = hd.createElement("div"); d.className = "pg";
+                const f = hd.createElement("iframe");
+                loads.push(new Promise(ok => { f.onload = ok; }));
+                d.appendChild(f); hd.body.appendChild(d); f.srcdoc = r.html;
+            } else {
+                fb++;
+                const d = hd.createElement("div"); d.className = "fb"; d.innerHTML = pdfHtml(list[i]); hd.body.appendChild(d);
+            }
+        });
+        await Promise.all(loads);
+        await new Promise(r => setTimeout(r, 600));
+        const oldTitle = document.title; document.title = title;
+        msg(`✔ Đã chuẩn bị ${list.length} hóa đơn` + (fb ? ` (${fb} hóa đơn không có mẫu gốc → dùng mẫu tự dựng)` : "") + (longN ? ` (${longN} hóa đơn dài đã thu nhỏ vừa 1 trang)` : "") + ` — chọn "Lưu dưới dạng PDF" trong hộp thoại in.`);
+        box.lastChild.style.display = "none";
+        try {
+            await new Promise(done => {
+                host.contentWindow.addEventListener("afterprint", done, { once: true });
+                setTimeout(done, 600000);
+                host.contentWindow.focus(); host.contentWindow.print();
+            });
+        } finally { document.title = oldTitle; host.remove(); cleanup(); }
     }
 
     // ---------- HỢP ĐỒNG & ĐIỀU KHOẢN THANH TOÁN THEO NHÀ CUNG CẤP (file lưu trong trình duyệt này) ----------
