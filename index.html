@@ -203,6 +203,8 @@
         .cf-row th{background:#f1f5f9;padding:6px 8px;text-transform:none;letter-spacing:0;font-weight:500;z-index:2}
         .cf{width:100%;min-width:64px;padding:6px 8px;font:500 12px/1.2 inherit;font-family:inherit;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;color:var(--text);outline:none}
         .cf:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+        .cf[list]{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%2394a3b8'/></svg>");background-repeat:no-repeat;background-position:right 7px center;padding-right:22px}
+        .cf::-webkit-calendar-picker-indicator{opacity:0;width:18px;cursor:pointer}
         .selcell{white-space:nowrap}
         .selcell input,#selAllPage{width:17px;height:17px;cursor:pointer;vertical-align:middle;accent-color:var(--primary)}
         .selno{display:none;place-items:center;min-width:22px;height:22px;padding:0 5px;margin-left:5px;border-radius:999px;background:var(--primary);color:#fff;font-size:11.5px;font-weight:700;vertical-align:middle}
@@ -309,12 +311,12 @@
                 </tr>
                 <tr class="cf-row">
                     <th></th><th></th>
-                    <th><input class="cf" id="cf_date" placeholder="07/10 hoặc 2026-10" oninput="debounceFilter()"></th>
-                    <th><input class="cf" id="cf_number" placeholder="Số / ký hiệu" oninput="debounceFilter()"></th>
-                    <th><input class="cf" id="cf_tax" placeholder="MST" oninput="debounceFilter()"></th>
-                    <th><input class="cf" id="cf_seller" placeholder="Tên đơn vị bán" oninput="debounceFilter()"></th>
-                    <th><input class="cf" id="cf_buyer" placeholder="Người mua" oninput="debounceFilter()"></th>
-                    <th class="hm"><input class="cf" id="cf_rate" placeholder="8" oninput="debounceFilter()"></th>
+                    <th><input class="cf" id="cf_date" list="dl_date" autocomplete="off" onfocus="fillCfList('date')" placeholder="Chọn / gõ ngày" oninput="debounceFilter()"><datalist id="dl_date"></datalist></th>
+                    <th><input class="cf" id="cf_number" list="dl_number" autocomplete="off" onfocus="fillCfList('number')" placeholder="Chọn ký hiệu / gõ số" oninput="debounceFilter()"><datalist id="dl_number"></datalist></th>
+                    <th><input class="cf" id="cf_tax" list="dl_tax" autocomplete="off" onfocus="fillCfList('tax')" placeholder="Chọn / gõ MST" oninput="debounceFilter()"><datalist id="dl_tax"></datalist></th>
+                    <th><input class="cf" id="cf_seller" list="dl_seller" autocomplete="off" onfocus="fillCfList('seller')" placeholder="Chọn / gõ đơn vị bán" oninput="debounceFilter()"><datalist id="dl_seller"></datalist></th>
+                    <th><input class="cf" id="cf_buyer" list="dl_buyer" autocomplete="off" onfocus="fillCfList('buyer')" placeholder="Chọn / gõ người mua" oninput="debounceFilter()"><datalist id="dl_buyer"></datalist></th>
+                    <th class="hm"><input class="cf" id="cf_rate" list="dl_rate" autocomplete="off" onfocus="fillCfList('rate')" placeholder="Chọn" oninput="debounceFilter()"><datalist id="dl_rate"></datalist></th>
                     <th class="hm"><input class="cf" id="cf_vat" placeholder=">100000" title="Gõ số, hoặc >, <, >=, <=, hoặc khoảng 1000-5000" oninput="debounceFilter()"></th>
                     <th><input class="cf" id="cf_total" placeholder=">1000000" title="Gõ số, hoặc >, <, >=, <=, hoặc khoảng 1000000-5000000" oninput="debounceFilter()"></th>
                     <th class="text-center"><button class="chip reset" onclick="clearColFilters()" title="Xóa tất cả ô tìm theo cột">✖ cột</button></th>
@@ -1014,17 +1016,8 @@
     let filterTimer;
     function debounceFilter() { clearTimeout(filterTimer); filterTimer = setTimeout(() => filterTable(), 250); }
     function filterTable(keepPage) {
-        const toks = norm(document.getElementById("searchInput").value).split(/\s+/).filter(Boolean);
-        const from = document.getElementById("dateFrom").value, to = document.getElementById("dateTo").value;
-        const expF = document.getElementById("expFilter").value, cf = cfVals();
-        const filtered = allInvoices.filter(inv => {
-            if (from && inv.date < from) return false;
-            if (to && inv.date > to) return false;
-            if (expF && (expF === "__none" ? expOf(inv.sellerTax) !== NOCAT : expOf(inv.sellerTax) !== expF)) return false;
-            if (cf && !cfMatch(inv, cf)) return false;
-            if (toks.length) { const t = searchText(inv); if (!toks.every(k => t.includes(k))) return false; }
-            return true;
-        });
+        const c = filterCtx();
+        const filtered = allInvoices.filter(inv => invPass(inv, c));
         const cmp = SORTERS[sortKey] || SORTERS.date;
         filtered.sort((a, b) => cmp(a, b) * sortDir || (b.date || "").localeCompare(a.date || "") || String(b.number).localeCompare(String(a.number)));
         renderTable(filtered, keepPage === true);
@@ -1181,7 +1174,11 @@
         Object.keys(cashCatOf).forEach(k => { if (cashCatOf[k] === n) delete cashCatOf[k]; }); lsSet("cashCatOf", cashCatOf); expChanged(); cashRefresh();
     }
     const expSelect = (m, cur) => `<select class="search-input term-in" style="max-width:220px" data-m="${qa(m)}" onchange="cashSetExp(this.dataset.m,this.value)"><option value="">— chọn loại chi phí —</option>${cashCats.map(c => `<option value="${qa(c)}" ${cur === c ? "selected" : ""}>${esc(c)}</option>`).join("")}<option value="__new">＋ Thêm loại mới…</option></select>`;
-    let cashEditOpen = false;
+    let cashEditOpen = false, cashNewQ = { name: "", mst: "" }, cashNewTimer;
+    function cashNewFilter(k, v) {
+        cashNewQ[k] = v; clearTimeout(cashNewTimer);
+        cashNewTimer = setTimeout(() => { cashRefresh(); const el = document.getElementById("nq_" + k); if (el) { el.focus(); const n = el.value.length; el.setSelectionRange(n, n); } }, 300);
+    }
     function cashToggleExp(i) { const c = [...cashCats, NOCAT][i]; cashCatOpen[c] = !cashCatOpen[c]; cashRefresh(); }
     function cashCatGroups(groups, wk) {
         const m = new Map([...cashCats, NOCAT].map(c => [c, { c, ng: 0, n: 0, tot: 0, plan: 0, items: [] }]));
@@ -1243,7 +1240,9 @@
         const unclass = groups.filter(g => !cashPlanOf(g, wk).c).length, noExp = groups.filter(g => expOf(g.mst) === NOCAT).length;
         const supAll = new Map(); allInvoices.forEach(i => { if (i.sellerTax) supAll.set(i.sellerTax, i.sellerName); });
         const unp = new Map(); all.forEach(r => { const u = unp.get(r.inv.sellerTax) || { n: 0, tot: 0 }; u.n++; u.tot += r.tot; unp.set(r.inv.sellerTax, u); });
-        const newSup = [...supAll].filter(([m]) => expOf(m) === NOCAT).sort((a, b) => ((unp.get(b[0]) || {}).tot || 0) - ((unp.get(a[0]) || {}).tot || 0));
+        const newSupAll = [...supAll].filter(([m]) => expOf(m) === NOCAT).sort((a, b) => ((unp.get(b[0]) || {}).tot || 0) - ((unp.get(a[0]) || {}).tot || 0));
+        const nqN = norm(cashNewQ.name.trim()), nqM = cashNewQ.mst.trim();
+        const newSup = newSupAll.filter(([m, n]) => (!nqN || norm(n).includes(nqN)) && (!nqM || m.includes(nqM)));
         const doneSup = [...supAll].filter(([m]) => expOf(m) !== NOCAT).sort((a, b) => a[1].localeCompare(b[1], "vi"));
         const cgs = cashCatGroups(groups, wk), allKeys = [...cashCats, NOCAT];
         const expHtml = cgs.map(x => { const open = cashCatOpen[x.c], i = allKeys.indexOf(x.c);
@@ -1283,8 +1282,11 @@
              <div class="summary">${card("Cần trả tuần này", money(tot), "đ · " + groups.length + " NCC", "main")}${card("Trong đó quá hạn", `<span class="${over ? "due-over" : ""}">${money(over)}</span>`, "đ")}${card("Dự kiến chi (đã phân loại)", money(planned), "đ")}${card(left < 0 ? "Thiếu so với ngân sách" : "Còn lại sau khi chi", `<span class="${left < 0 ? "due-over" : "due-ok"}">${budget ? money(Math.abs(left)) : "—"}</span>`, budget ? "đ" : "")}</div>
              <h4 class="section-title">Chi phí theo loại — tuần ${isoWk(ws)} <span class="sub" style="text-transform:none;font-weight:400">(bấm vào loại để xem chi tiết hóa đơn)</span></h4>
              <div class="table-wrap" style="max-height:44vh;margin-bottom:18px"><table><thead><tr><th>Loại chi phí</th><th class="text-right">Số NCC</th><th class="text-right">Số HĐ</th><th class="text-right">Cần trả</th><th class="text-right">Dự kiến chi</th><th class="text-right">Tỷ trọng</th></tr></thead><tbody>${expHtml || `<tr><td colspan="6"><div class="empty">Tuần này không có khoản nào đến hạn.</div></td></tr>`}${cgs.length ? `<tr><td><b>Tổng cộng</b></td><td></td><td class="text-right"><b>${cgs.reduce((a, x) => a + x.n, 0)}</b></td><td class="text-right amount">${money(tot)}</td><td class="text-right"><b>${money(planned)}</b></td><td></td></tr>` : ""}</tbody></table></div>
-             ${newSup.length ? `<div class="ctr-card" style="border-color:#fdba74"><h4 class="section-title" style="margin-top:0">🆕 NCC mới cần gán loại chi phí (${newSup.length})</h4><p class="sub" style="margin:0 0 8px">Chỉ hiện NCC chưa được phân loại. Chọn xong NCC sẽ biến mất khỏi danh sách và các tuần sau tự áp dụng.</p>
-               <div class="table-wrap" style="max-height:260px"><table><thead><tr><th>Nhà cung cấp</th><th>MST</th><th class="text-right">HĐ chưa TT</th><th class="text-right">Tiền chưa TT</th><th>Loại chi phí</th></tr></thead><tbody>${newSup.map(([m, n]) => `<tr><td class="seller">${esc(n)}</td><td><span class="badge-tax">${esc(m)}</span></td><td class="text-right">${(unp.get(m) || {}).n || 0}</td><td class="text-right amount">${money((unp.get(m) || {}).tot || 0)}</td><td>${expSelect(m, "")}</td></tr>`).join("")}</tbody></table></div></div>` : `<p class="sub" style="margin:0 0 12px"><span class="due-ok">✔ Tất cả NCC đã được gán loại chi phí.</span></p>`}
+             ${newSupAll.length ? `<div class="ctr-card" style="border-color:#fdba74"><h4 class="section-title" style="margin-top:0">🆕 NCC mới cần gán loại chi phí (${newSup.length === newSupAll.length ? newSupAll.length : newSup.length + " / " + newSupAll.length})</h4><p class="sub" style="margin:0 0 8px">Chỉ hiện NCC chưa được phân loại. Chọn xong NCC sẽ biến mất khỏi danh sách và các tuần sau tự áp dụng.</p>
+               <div class="table-wrap" style="max-height:340px"><table><thead><tr><th>Nhà cung cấp</th><th>MST</th><th class="text-right">HĐ chưa TT</th><th class="text-right">Tiền chưa TT</th><th>Loại chi phí</th></tr>
+               <tr class="cf-row"><th style="top:41px"><input class="cf" id="nq_name" list="dl_nq_name" autocomplete="off" placeholder="Chọn / gõ tên NCC" value="${qa(cashNewQ.name)}" oninput="cashNewFilter('name',this.value)"><datalist id="dl_nq_name">${newSupAll.map(([m, n]) => `<option value="${qa(n)}"></option>`).join("")}</datalist></th>
+               <th style="top:41px"><input class="cf" id="nq_mst" list="dl_nq_mst" autocomplete="off" placeholder="Chọn / gõ MST" value="${qa(cashNewQ.mst)}" oninput="cashNewFilter('mst',this.value)"><datalist id="dl_nq_mst">${newSupAll.map(([m]) => `<option value="${qa(m)}"></option>`).join("")}</datalist></th>
+               <th style="top:41px"></th><th style="top:41px"></th><th style="top:41px"><button class="chip reset" onclick="cashNewQ={name:'',mst:''};cashRefresh()">✖ Xóa lọc</button></th></tr></thead><tbody>${newSup.length ? "" : `<tr><td colspan="5" class="sub">Không có NCC nào khớp.</td></tr>`}${newSup.map(([m, n]) => `<tr><td class="seller">${esc(n)}</td><td><span class="badge-tax">${esc(m)}</span></td><td class="text-right">${(unp.get(m) || {}).n || 0}</td><td class="text-right amount">${money((unp.get(m) || {}).tot || 0)}</td><td>${expSelect(m, "")}</td></tr>`).join("")}</tbody></table></div></div>` : `<p class="sub" style="margin:0 0 12px"><span class="due-ok">✔ Tất cả NCC đã được gán loại chi phí.</span></p>`}
              <details class="terms" ${cashEditOpen ? "open" : ""} ontoggle="cashEditOpen=this.open"><summary>Xem / sửa loại chi phí đã gán (${doneSup.length} NCC)</summary><div class="filters2" style="margin:10px 0 0"><span class="spacer"></span><button class="chip" onclick="cashDelExp()">🗑 Xóa loại chi phí</button></div>
                <div class="terms-box"><table><thead><tr><th>Nhà cung cấp</th><th>MST</th><th>Loại chi phí</th></tr></thead><tbody>${doneSup.map(([m, n]) => `<tr><td class="seller">${esc(n)}</td><td><span class="badge-tax">${esc(m)}</span></td><td>${expSelect(m, expOf(m))}</td></tr>`).join("") || `<tr><td colspan="3" class="sub">Chưa có NCC nào.</td></tr>`}</tbody></table></div></details>
              <h4 class="section-title">Thanh toán NCC — tuần ${isoWk(ws)}</h4>
@@ -1486,13 +1488,45 @@
         }
         return inv._c[k];
     }
-    function cfMatch(inv, cf) {
-        for (const k in cf) {
-            if (k === "vat") { if (!numMatch(inv.vatAmount, cf[k])) return false; }
-            else if (k === "total") { if (!numMatch(inv.totalAmount, cf[k])) return false; }
-            else { const t = cfText(inv, k); if (!norm(cf[k]).split(/\s+/).every(w => t.includes(w))) return false; }
-        }
+    function cfOne(inv, k, q) {
+        if (k === "vat") return numMatch(inv.vatAmount, q);
+        if (k === "total") return numMatch(inv.totalAmount, q);
+        const t = cfText(inv, k); return norm(q).split(/\s+/).every(w => t.includes(w));
+    }
+    function cfMatch(inv, cf) { for (const k in cf) if (!cfOne(inv, k, cf[k])) return false; return true; }
+    function filterCtx() {
+        return { toks: norm(document.getElementById("searchInput").value).split(/\s+/).filter(Boolean),
+            from: document.getElementById("dateFrom").value, to: document.getElementById("dateTo").value,
+            expF: document.getElementById("expFilter").value, cf: cfVals() };
+    }
+    function invPass(inv, c, skip) {   // skip = tên cột bỏ qua (để danh sách chọn của cột đó hiện đủ giá trị)
+        if (c.from && inv.date < c.from) return false;
+        if (c.to && inv.date > c.to) return false;
+        if (c.expF && (c.expF === "__none" ? expOf(inv.sellerTax) !== NOCAT : expOf(inv.sellerTax) !== c.expF)) return false;
+        if (c.cf) for (const k in c.cf) { if (k !== skip && !cfOne(inv, k, c.cf[k])) return false; }
+        if (c.toks.length) { const t = searchText(inv); if (!c.toks.every(k => t.includes(k))) return false; }
         return true;
+    }
+    // danh sách giá trị có trong từng cột (chỉ tính các hóa đơn còn lại sau khi áp các bộ lọc khác)
+    function cfVal(inv, k) {
+        switch (k) {
+            case "date": return inv.date ? inv.date.split("-").reverse().join("/") : "";
+            case "number": return inv.series || "";
+            case "tax": return inv.sellerTax || "";
+            case "seller": return inv.sellerName || "";
+            case "buyer": return inv.buyerContact || inv.buyerName || "";
+            case "rate": return invRate(inv);
+        }
+        return "";
+    }
+    function fillCfList(k) {
+        const dl = document.getElementById("dl_" + k); if (!dl) return;
+        const c = filterCtx(), m = new Map();
+        allInvoices.forEach(inv => { if (!invPass(inv, c, k)) return; const v = cfVal(inv, k); if (v) m.set(v, (m.get(v) || 0) + 1); });
+        const arr = [...m];
+        if (k === "date") arr.sort((a, b) => b[0].split("/").reverse().join("").localeCompare(a[0].split("/").reverse().join("")));
+        else arr.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "vi"));
+        dl.innerHTML = arr.slice(0, 2000).map(([v, n]) => `<option value="${qa(v)}" label="${n} hóa đơn"></option>`).join("");
     }
     function clearColFilters() { CF_KEYS.forEach(k => { const el = document.getElementById("cf_" + k); if (el) el.value = ""; }); filterTable(); }
 
