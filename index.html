@@ -119,6 +119,19 @@
         }
 
         /* ===== bổ sung: tổng hợp, bộ lọc nhanh, sắp xếp, dark mode ===== */
+        /* ===== thanh công cụ gọn ===== */
+        .toolbar{background:#fafbfd;border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:16px;display:flex;flex-direction:column;gap:10px}
+        .tb-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+        .tb-group{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+        .tb-reports{padding-top:10px;border-top:1px dashed #e2e8f0}
+        .tb-label{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-right:2px}
+        .tb-arrow{color:var(--muted);font-size:13px}
+        .tb-ctl{width:auto;padding:6px 10px;font-size:13px;border-radius:8px}
+        .chip-sm{padding:6px 11px;font-size:12.5px}
+        .toolbar .spacer{flex:1}
+        html[data-theme="dark"] .toolbar{background:#1e293b;border-color:#334155}
+        html[data-theme="dark"] .tb-reports{border-top-color:#334155}
+        @media(max-width:760px){.toolbar .spacer{display:none}.toolbar .sep{display:none}}
         .filters{margin-bottom:12px}
         .filters2{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:20px}
         .chip{border:1.5px solid #e5e7eb;background:#fff;color:#374151;padding:7px 13px;border-radius:999px;cursor:pointer;
@@ -254,39 +267,41 @@
             ⏳ Đang kết nối kho dữ liệu GitHub...
         </div>
 
-        <div class="filters">
-            <div class="search-wrap">
-                <span class="ico">🔍</span>
-                <input type="text" id="searchInput" class="search-input" placeholder="Tìm theo MST, tên bên bán/bên mua, số hóa đơn, tên hàng hóa... (không cần gõ dấu)" oninput="debounceFilter()">
+        <div class="toolbar">
+            <!-- ô tìm kiếm được ẩn (giữ lại để chức năng lọc khi bấm vào báo cáo vẫn hoạt động) -->
+            <input type="hidden" id="searchInput">
+            <div class="tb-row">
+                <div class="tb-group">
+                    <button class="chip" onclick="quickRange('month')">Tháng này</button>
+                    <button class="chip" onclick="quickRange('lastmonth')">Tháng trước</button>
+                    <button class="chip" onclick="quickRange('quarter')">Quý này</button>
+                    <button class="chip" onclick="quickRange('lastquarter')">Quý trước</button>
+                    <button class="chip" onclick="quickRange('year')">Năm nay</button>
+                </div>
+                <span class="sep"></span>
+                <div class="tb-group">
+                    <input type="date" id="dateFrom" class="search-input tb-ctl" onchange="filterTable()" title="Từ ngày">
+                    <span class="tb-arrow">→</span>
+                    <input type="date" id="dateTo" class="search-input tb-ctl" onchange="filterTable()" title="Đến ngày">
+                </div>
+                <span class="sep"></span>
+                <select id="expFilter" class="search-input tb-ctl" style="max-width:200px" onchange="filterTable()" title="Lọc theo loại chi phí đã phân loại trong báo cáo dòng tiền"></select>
+                <span class="spacer"></span>
+                <select id="pageSize" class="search-input tb-ctl" onchange="changePageSize()" title="Số dòng mỗi trang">
+                    <option value="50">50 dòng/trang</option><option value="100">100 dòng/trang</option>
+                    <option value="200">200 dòng/trang</option><option value="500">500 dòng/trang</option>
+                </select>
+                <button class="chip reset" onclick="clearFilters()">✖ Xóa bộ lọc</button>
             </div>
-            <input type="date" id="dateFrom" class="search-input date-input" onchange="filterTable()" title="Từ ngày">
-            <input type="date" id="dateTo" class="search-input date-input" onchange="filterTable()" title="Đến ngày">
-        </div>
-
-        <div class="filters2">
-            <button class="chip" onclick="quickRange('month')">Tháng này</button>
-            <button class="chip" onclick="quickRange('lastmonth')">Tháng trước</button>
-            <button class="chip" onclick="quickRange('quarter')">Quý này</button>
-            <button class="chip" onclick="quickRange('lastquarter')">Quý trước</button>
-            <button class="chip" onclick="quickRange('year')">Năm nay</button>
-            <span class="sep"></span>
-            <select id="expFilter" class="search-input page-size" style="max-width:260px" onchange="filterTable()" title="Lọc theo loại chi phí đã phân loại trong báo cáo dòng tiền"></select>
-            <span class="spacer"></span>
-            <select id="pageSize" class="search-input page-size" onchange="changePageSize()" title="Số dòng mỗi trang">
-                <option value="50">50 dòng/trang</option><option value="100">100 dòng/trang</option>
-                <option value="200">200 dòng/trang</option><option value="500">500 dòng/trang</option>
-            </select>
-            <button class="chip reset" onclick="clearFilters()">✖ Xóa bộ lọc</button>
-        </div>
-
-        <div class="filters2 reports-bar">
-            <b style="font-size:13px;color:var(--muted)">📈 BÁO CÁO:</b>
-            <button class="chip" onclick="openReport('seller')">Theo nhà cung cấp</button>
-            <button class="chip" onclick="openReport('buyer')">Theo người mua / rạp</button>
-            <button class="chip" onclick="openReport('alert')">⚠️ Bất thường</button>
-            <button class="chip" onclick="openDebt()">💳 Công nợ / Hạn thanh toán</button>
-            <button class="chip" onclick="openCash()">💸 Dòng tiền theo tuần</button>
-            <button class="chip" onclick="openRecon()">🔍 Đối soát số liệu</button>
+            <div class="tb-row tb-reports">
+                <span class="tb-label">📈 Báo cáo</span>
+                <button class="chip chip-sm" onclick="openReport('seller')">Theo nhà cung cấp</button>
+                <button class="chip chip-sm" onclick="openReport('buyer')">Theo người mua / rạp</button>
+                <button class="chip chip-sm" onclick="openReport('alert')">⚠️ Bất thường</button>
+                <button class="chip chip-sm" onclick="openDebt()">💳 Công nợ / Hạn TT</button>
+                <button class="chip chip-sm" onclick="openCash()">💸 Dòng tiền tuần</button>
+                <button class="chip chip-sm" onclick="openRecon()">🔍 Đối soát</button>
+            </div>
         </div>
 
         <div class="summary" id="summary"></div>
