@@ -369,7 +369,7 @@
     let currentList = [];      // danh sách đang hiển thị (sau lọc)
     let page = 0;
     let PAGE_SIZE = 100;
-    const CACHE_VERSION = 2;   // tăng số này nếu sửa cách đọc XML để buộc đọc lại
+    const CACHE_VERSION = 3;   // tăng số này nếu sửa cách đọc XML để buộc đọc lại
     const CONCURRENCY = 8;
 
     // ---------- IndexedDB cache: mỗi file DATA lưu 1 bản ghi {path, sha, v, invoices} ----------
@@ -534,6 +534,14 @@
                 return "";
             };
             const d10 = (s) => (s || "").substring(0, 10);
+            // Đọc trường mở rộng trong NMua > TTKhac > TTin (vd. ShipTo, ShipAddress từ XML gộp với file mail)
+            const getBuyerExtra = (key) => {
+                for (const t of xml.querySelectorAll("NMua TTKhac TTin")) {
+                    const k = t.querySelector("TTruong"), v = t.querySelector("DLieu");
+                    if (k && v && k.textContent.trim().toLowerCase() === key.toLowerCase() && v.textContent.trim()) return v.textContent.trim();
+                }
+                return "";
+            };
 
             const sellerTax = getTxt("NBan > MST", "MSTNBan", "SellerTaxCode");
             const number = getTxt("SHDon", "SOHDON", "InvoiceNumber");
@@ -599,7 +607,8 @@
                 buyerName: getTxt("NMua > Ten", "NMua > DVTen", "BuyerName"),
                 buyerTax: getTxt("NMua > MST"),
                 buyerAddr: getTxt("NMua > DChi"),
-                buyerContact: getTxt("NMua > HVTNMHang", "NMua > HTTThan", "NMua > TNCongTrinh"),
+                buyerContact: getBuyerExtra("ShipTo") || getTxt("NMua > HVTNMHang", "NMua > HTTThan", "NMua > TNCongTrinh"),
+                buyerShipAddr: getBuyerExtra("ShipAddress"),
                 totalBeforeTax: getTxt("TgTCThue") || "0",
                 vatAmount: getTxt("TgTThue") || "0",
                 totalAmount: getTxt("TgTTTBSo", "TgTTien", "TONGTIEN", "TotalAmount") || "0",
@@ -694,6 +703,7 @@
                     <p><b>Người mua hàng:</b> ${inv.buyerContact || ""}</p>
                     ${inv.buyerName ? `<p><b>Đơn vị mua:</b> ${inv.buyerName}</p>` : ''}
                     ${inv.buyerTax ? `<p><b>MST người mua:</b> ${inv.buyerTax}</p>` : ''}
+                    ${inv.buyerShipAddr ? `<p><b>Địa chỉ giao hàng:</b> ${inv.buyerShipAddr}</p>` : ''}
                 </div>
             </div>
 
