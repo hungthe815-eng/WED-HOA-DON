@@ -150,6 +150,33 @@
         .sum-card .val small{font-size:12px;font-weight:500;color:var(--muted);margin-left:3px}
         .sum-card.main{background:linear-gradient(135deg,#eff6ff,#eef2ff);border-color:#dbeafe}
         .sum-card.main .val{color:var(--primary-d)}
+        tbody tr.r-dc,tbody tr.r-dc:nth-child(even){background:#fff4e5}
+        tbody tr.r-tt,tbody tr.r-tt:nth-child(even){background:#e8f1ff}
+        tbody tr.r-bi,tbody tr.r-bi:nth-child(even){background:#fdecec}
+        html[data-theme="dark"] tbody tr.r-dc,html[data-theme="dark"] tbody tr.r-dc:nth-child(even){background:#3b2410}
+        html[data-theme="dark"] tbody tr.r-tt,html[data-theme="dark"] tbody tr.r-tt:nth-child(even){background:#14284d}
+        html[data-theme="dark"] tbody tr.r-bi,html[data-theme="dark"] tbody tr.r-bi:nth-child(even){background:#3b1414}
+        .m-co{background:#ecfdf5;color:#047857;border-color:#a7f3d0}
+        .m-khong{background:#f1f5f9;color:#475569;border-color:#cbd5e1}
+        .m-mtt{background:#f5f3ff;color:#6d28d9;border-color:#ddd6fe}
+        html[data-theme="dark"] .m-co{background:#052e16;color:#86efac;border-color:#166534}
+        html[data-theme="dark"] .m-khong{background:#1e293b;color:#cbd5e1;border-color:#334155}
+        html[data-theme="dark"] .m-mtt{background:#2e1065;color:#c4b5fd;border-color:#5b21b6}
+        .rel-legend{display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-size:12.5px;margin:0 0 8px;color:var(--muted,#64748b)}
+        .rel-legend i{display:inline-block;width:14px;height:14px;border-radius:4px;margin-right:5px;vertical-align:-3px;border:1px solid rgba(0,0,0,.12)}
+        .kbadge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;border:1px solid transparent}
+        .k-goc{background:#f1f5f9;color:#475569;border-color:#e2e8f0}
+        .k-dc{background:#fff7ed;color:#c2410c;border-color:#fed7aa}
+        .k-tt{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe}
+        .k-bi{background:#fef2f2;color:#b91c1c;border-color:#fecaca}
+        .ksub{font-size:11.5px;color:var(--muted,#64748b);margin-top:3px;line-height:1.35;white-space:normal;max-width:210px}
+        .rel-box{margin:0 0 14px;padding:10px 14px;border-radius:10px;background:#fffbeb;border:1px solid #fde68a;font-size:13.5px;line-height:1.7}
+        .rel-box a{color:var(--primary,#2563eb);font-weight:700;cursor:pointer;text-decoration:underline}
+        html[data-theme="dark"] .k-goc{background:#1e293b;color:#cbd5e1;border-color:#334155}
+        html[data-theme="dark"] .k-dc{background:#431407;color:#fdba74;border-color:#9a3412}
+        html[data-theme="dark"] .k-tt{background:#172554;color:#bfdbfe;border-color:#1e40af}
+        html[data-theme="dark"] .k-bi{background:#450a0a;color:#fecaca;border-color:#991b1b}
+        html[data-theme="dark"] .rel-box{background:#422006;border-color:#854d0e}
         th[data-sort]{cursor:pointer;user-select:none}
         th[data-sort]:hover{color:var(--primary);background:#eef4ff}
         th[data-sort]::after{content:"↕";opacity:.35;margin-left:6px;font-size:11px}
@@ -308,6 +335,7 @@
 
         <div id="selBar" class="selbar"></div>
 
+        <div class="rel-legend"><span><i style="background:#fff4e5"></i>Hóa đơn điều chỉnh</span><span><i style="background:#e8f1ff"></i>Hóa đơn thay thế</span><span><i style="background:#fdecec"></i>Hóa đơn gốc đã bị điều chỉnh / thay thế</span><span>Không tô màu = hóa đơn gốc</span></div>
         <div class="table-wrap" id="mainWrap">
         <table>
             <thead>
@@ -316,6 +344,7 @@
                     <th style="width: 60px;" class="text-center">STT</th>
                     <th style="width: 120px;" data-sort="date">Ngày Lập</th>
                     <th style="width: 180px;" data-sort="number">Số Hóa Đơn</th>
+                    <th style="width: 150px;" data-sort="kind">Loại hóa đơn</th>
                     <th style="width: 140px;" data-sort="tax">MST Bán</th>
                     <th data-sort="seller">Đơn Vị Bán</th>
                     <th style="width: 170px;" data-sort="buyer">Người Mua Hàng</th>
@@ -328,6 +357,7 @@
                     <th></th><th></th>
                     <th><input class="cf" id="cf_date" list="dl_date" autocomplete="off" onfocus="fillCfList('date')" placeholder="Chọn / gõ ngày" oninput="debounceFilter()"><datalist id="dl_date"></datalist></th>
                     <th><input class="cf" id="cf_number" list="dl_number" autocomplete="off" onfocus="fillCfList('number')" placeholder="Chọn ký hiệu / gõ số" oninput="debounceFilter()"><datalist id="dl_number"></datalist></th>
+                    <th><input class="cf" id="cf_kind" list="dl_kind" autocomplete="off" onfocus="fillCfList('kind')" placeholder="Có mã / Máy tính tiền / Điều chỉnh..." title="Gõ: có mã, không mã, máy tính tiền, điều chỉnh, thay thế, bị điều chỉnh..." oninput="debounceFilter()"><datalist id="dl_kind"></datalist></th>
                     <th><input class="cf" id="cf_tax" list="dl_tax" autocomplete="off" onfocus="fillCfList('tax')" placeholder="Chọn / gõ MST" oninput="debounceFilter()"><datalist id="dl_tax"></datalist></th>
                     <th><input class="cf" id="cf_seller" list="dl_seller" autocomplete="off" onfocus="fillCfList('seller')" placeholder="Chọn / gõ đơn vị bán" oninput="debounceFilter()"><datalist id="dl_seller"></datalist></th>
                     <th><input class="cf" id="cf_buyer" list="dl_buyer" autocomplete="off" onfocus="fillCfList('buyer')" placeholder="Chọn / gõ người mua" oninput="debounceFilter()"><datalist id="dl_buyer"></datalist></th>
@@ -338,7 +368,7 @@
                 </tr>
             </thead>
             <tbody id="invoiceList">
-                <tr><td colspan="11"><div class="empty"><div class="big">⏳</div>Đang tải danh sách...</div></td></tr>
+                <tr><td colspan="12"><div class="empty"><div class="big">⏳</div>Đang tải danh sách...</div></td></tr>
             </tbody>
         </table>
         </div>
@@ -365,11 +395,12 @@
     const pathSegments = window.location.pathname.split('/').filter(Boolean);
     const repoName = pathSegments.length > 0 ? pathSegments[0] : '';
     const ownerName = window.location.hostname.split('.')[0];
-    let allInvoices = [];      // toàn bộ hóa đơn (đã gộp từ cache)
+    let allInvoices = [];
+    let relBy = new Map(), relIdx = new Map();   // liên kết hóa đơn điều chỉnh / thay thế      // toàn bộ hóa đơn (đã gộp từ cache)
     let currentList = [];      // danh sách đang hiển thị (sau lọc)
     let page = 0;
     let PAGE_SIZE = 100;
-    const CACHE_VERSION = 3;   // tăng số này nếu sửa cách đọc XML để buộc đọc lại
+    const CACHE_VERSION = 4;   // tăng số này nếu sửa cách đọc XML để buộc đọc lại
     const CONCURRENCY = 8;
 
     // ---------- IndexedDB cache: mỗi file DATA lưu 1 bản ghi {path, sha, v, invoices} ----------
@@ -425,6 +456,7 @@
         best.forEach(inv => { const d = byDate.get(inv.date); if (d) d.uniq++; });
         reconInfo = { files: cached.size, noInv, dups: dupsRaw.map(x => ({ lose: x.lose, win: best.get(x.k) })), byDate };
         allInvoices = [...best.values()];
+        buildRelations();
         filterTable(true);
     }
 
@@ -616,6 +648,7 @@
                 status: relCode === "1" ? "Hóa đơn thay thế" : relCode === "2" ? "Hóa đơn điều chỉnh" : "Hóa đơn mới",
                 checkResult: hasMCCQT ? "Đã cấp mã hóa đơn" : "Cục Thuế đã nhận không mã",
                 relType: relCode === "1" ? "Thay thế" : relCode === "2" ? "Điều chỉnh" : "",
+                relTemplate: getTxt("TTHDLQuan > KHMSHDCLQuan", "KHMSHDCLQuan"),
                 relNumber: getTxt("TTHDLQuan > SHDCLQuan", "SHDCLQuan"),
                 relSeries: getTxt("TTHDLQuan > KHHDCLQuan", "KHHDCLQuan"),
                 relDate: d10(getTxt("TTHDLQuan > NLHDCLQuan", "NLHDCLQuan")),
@@ -624,6 +657,55 @@
             };
         } catch(e) {}
     }
+
+    // ---------- LOẠI HÓA ĐƠN: gốc / điều chỉnh / thay thế, liên kết hai chiều ----------
+    const relNorm = (n) => { n = String(n == null ? "" : n).trim(); return /^\d+$/.test(n) ? String(Number(n)) : n.toUpperCase(); };
+    const relKey = (i) => `${i.sellerTax}|${i.series}|${relNorm(i.number)}`;
+    const refLabel = (series, number) => (series ? series + "-" : "") + number;
+    function buildRelations() {
+        relBy = new Map(); relIdx = new Map();
+        const byNum = new Map();
+        allInvoices.forEach(i => {
+            relIdx.set(relKey(i), i);
+            const k = i.sellerTax + "|" + relNorm(i.number);
+            if (!byNum.has(k)) byNum.set(k, []);
+            byNum.get(k).push(i);
+        });
+        allInvoices.forEach(i => {
+            if (!i.relType || !i.relNumber) return;
+            let t = relIdx.get(`${i.sellerTax}|${i.relSeries}|${relNorm(i.relNumber)}`);
+            if (!t && !i.relSeries) {                    // XML không ghi ký hiệu: chỉ nhận khi số HĐ là duy nhất của NCC
+                const c = (byNum.get(i.sellerTax + "|" + relNorm(i.relNumber)) || []).filter(x => x !== i);
+                if (c.length === 1) t = c[0];
+            }
+            i._relTo = t || null;                        // hóa đơn gốc bị điều chỉnh / bị thay thế (nếu có trong dữ liệu)
+            if (t) { const k = relKey(t); if (!relBy.has(k)) relBy.set(k, []); relBy.get(k).push(i); }
+        });
+    }
+    // Trả về { label, cls, lines:[{text, key}] }
+    function invKind(inv) {
+        const by = relBy.get(relKey(inv)) || [];
+        const rep = by.filter(x => x.relType === "Thay thế"), adj = by.filter(x => x.relType === "Điều chỉnh");
+        let label = "Gốc", cls = "k-goc";
+        if (inv.relType === "Thay thế") { label = "Thay thế"; cls = "k-tt"; }
+        else if (inv.relType === "Điều chỉnh") { label = "Điều chỉnh"; cls = "k-dc"; }
+        else if (rep.length) { label = "Bị thay thế"; cls = "k-bi"; }
+        else if (adj.length) { label = "Bị điều chỉnh"; cls = "k-bi"; }
+        const lines = [];
+        if (inv.relType) lines.push({ text: `${inv.relType === "Thay thế" ? "Thay thế cho" : "Điều chỉnh cho"} HĐ ${refLabel(inv.relSeries, inv.relNumber)}${inv.relDate ? " (" + inv.relDate + ")" : ""}`, key: inv._relTo ? relKey(inv._relTo) : "", missing: !inv._relTo });
+        rep.forEach(x => lines.push({ text: `Bị thay thế bởi HĐ ${refLabel(x.series, x.number)} (${x.date})`, key: relKey(x) }));
+        adj.forEach(x => lines.push({ text: `Bị điều chỉnh bởi HĐ ${refLabel(x.series, x.number)} (${x.date})`, key: relKey(x) }));
+        return { label, cls, lines };
+    }
+    // Loại theo ký hiệu hóa đơn (TT78): ký tự 1 C = có mã / K = không mã; ký tự 4 M = khởi tạo từ máy tính tiền
+    function invMa(inv) {
+        const s = String(inv.series || "").toUpperCase();
+        const ma = s[0] === "C" ? "có mã" : s[0] === "K" ? "không mã" : (inv.checkResult === "Đã cấp mã hóa đơn" ? "có mã" : "không mã");
+        if (s[3] === "M") return { label: "Máy tính tiền", cls: "m-mtt", tip: "Hóa đơn khởi tạo từ máy tính tiền, " + ma };
+        return ma === "có mã" ? { label: "Có mã", cls: "m-co", tip: "Hóa đơn có mã của cơ quan thuế" } : { label: "Không mã", cls: "m-khong", tip: "Hóa đơn không có mã của cơ quan thuế" };
+    }
+    const rowCls = (k) => k.cls === "k-dc" ? "r-dc" : k.cls === "k-tt" ? "r-tt" : k.cls === "k-bi" ? "r-bi" : "";
+    function viewRel(k) { const t = relIdx.get(k); if (t) viewInvoice(-1, t); }
 
     function renderTable(list, keepPage) {
         currentList = list;
@@ -634,7 +716,7 @@
         if (page >= pages) page = pages - 1;
         const tbody = document.getElementById("invoiceList");
         if (!list.length) {
-            tbody.innerHTML = `<tr><td colspan="11"><div class="empty"><div class="big">📭</div>Không có hóa đơn nào phù hợp.</div></td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="12"><div class="empty"><div class="big">📭</div>Không có hóa đơn nào phù hợp.</div></td></tr>`;
             document.getElementById("pager").innerHTML = "";
             refreshSelUI(); fitTable();
             return;
@@ -644,11 +726,13 @@
         const html = [];
         list.slice(start, start + PAGE_SIZE).forEach((inv, i) => {
             const idx = start + i;
-            html.push(`<tr data-k="${qa(selKey(inv))}" ondblclick="rowDbl(event,${idx})" title="Nhấp đúp để mở hóa đơn">
+            const kd = invKind(inv), ma = invMa(inv);
+            html.push(`<tr class="${rowCls(kd)}" data-k="${qa(selKey(inv))}" ondblclick="rowDbl(event,${idx})" title="Nhấp đúp để mở hóa đơn">
                 <td class="text-center selcell"><input type="checkbox" onclick="togSel(event,${idx})" title="Tick để chọn in hàng loạt (giữ Shift để chọn cả dải)"><span class="selno"></span></td>
                 <td class="text-center stt">${idx + 1}</td>
                 <td class="nowrap">${inv.date}</td>
-                <td class="nowrap inv-no">${inv.series ? inv.series + '-' : ''}${inv.number}</td>
+                <td class="inv-no"><span class="nowrap">${inv.series ? inv.series + '-' : ''}${inv.number}</span>${kd.lines.length ? `<div class="ksub" title="${qa(kd.lines.map(l => l.text).join("\n"))}">${kd.lines.map(l => esc(l.text)).join("<br>")}</div>` : ""}</td>
+                <td><span class="kbadge ${ma.cls}" title="${qa(ma.tip)}">${ma.label}</span></td>
                 <td><span class="badge-tax clickable" title="Bấm để lọc theo nhà cung cấp này" data-tax="${esc(inv.sellerTax)}" onclick="searchBy(this.dataset.tax)">${esc(inv.sellerTax)}</span></td>
                 <td class="seller">${esc(inv.sellerName)}</td>
                 <td class="buyer" title="${esc(inv.buyerName)}">${esc(inv.buyerContact || inv.buyerName) || "—"}</td>
@@ -670,8 +754,10 @@
     }
     function goPage(p) { page = p; renderTable(currentList, true); }
 
-    function viewInvoice(index) {
-        const inv = currentList[index];
+    function viewInvoice(index, invObj) {
+        const inv = invObj || currentList[index];
+        const kd = invKind(inv);
+        const relHtml = kd.lines.length ? `<div class="rel-box">🔗 <b>Hóa đơn liên quan</b><br>${kd.lines.map(l => l.key ? `${esc(l.text)} — <a data-k="${qa(l.key)}" onclick="viewRel(this.dataset.k)">Xem hóa đơn</a>` : `${esc(l.text)} <i>(chưa có file trong dữ liệu)</i>`).join("<br>")}${inv.relNote ? `<br><span class="sub">Ghi chú: ${esc(inv.relNote)}</span>` : ""}</div>` : "";
         const fmt = (v) => v ? Number(v).toLocaleString("vi-VN") : "0";
 
         let itemsHtml = "";
@@ -698,6 +784,7 @@
                 </div>
                 <div>
                     <p><b>Mẫu số - Ký hiệu:</b> ${inv.templateCode} - ${inv.series}</p>
+                    <p><b>Loại hóa đơn:</b> <span class="kbadge ${invMa(inv).cls}">${invMa(inv).label}</span> <span class="kbadge ${kd.cls}">${kd.label}</span></p>
                     <p><b>Số Hóa Đơn:</b> <b style="color:#dc2626; font-size:16px;">${inv.number}</b></p>
                     <p><b>Ngày Lập:</b> ${inv.date}</p>
                     <p><b>Người mua hàng:</b> ${inv.buyerContact || ""}</p>
@@ -707,6 +794,7 @@
                 </div>
             </div>
 
+            ${relHtml}
             <h4 class="section-title">Chi tiết hàng hóa / dịch vụ</h4>
             <div class="table-wrap"><table>
                 <thead>
@@ -755,6 +843,7 @@
             <style>.pt td,.pt th{${td}}.pt th{background:#eee}</style>
             <div style="text-align:center">
                 <div style="font-size:20px;font-weight:bold">${esc(inv.invoiceType)}</div>
+                ${inv.relType ? `<div style="margin:6px 0">${inv.relType === "Thay thế" ? "Thay thế" : "Điều chỉnh"} cho ${inv.relTemplate ? `ký hiệu mẫu số hóa đơn <b>${esc(inv.relTemplate)}</b>, ` : ""}ký hiệu hóa đơn <b>${esc(inv.relSeries)}</b>, số hóa đơn <b>${esc(inv.relNumber)}</b>${inv.relDate ? `, ngày lập <b>${esc(inv.relDate.split("-").reverse().join("/"))}</b>` : ""}</div>` : ""}
                 <div>Ngày ${esc(d)}</div>
                 <div>Mẫu số: <b>${esc(inv.templateCode)}</b> &nbsp; Ký hiệu: <b>${esc(inv.series)}</b> &nbsp; Số: <b style="color:#c00">${esc(inv.number)}</b></div>
             </div>
@@ -968,6 +1057,7 @@
     const SORTERS = {
         date:   (a, b) => (a.date || "").localeCompare(b.date || ""),
         number: (a, b) => (a.series || "").localeCompare(b.series || "") || ((Number(a.number) - Number(b.number)) || String(a.number).localeCompare(String(b.number))),
+        kind:   (a, b) => invMa(a).label.localeCompare(invMa(b).label, "vi") || invKind(a).label.localeCompare(invKind(b).label, "vi"),
         tax:    (a, b) => String(a.sellerTax).localeCompare(String(b.sellerTax)),
         buyer:  (a, b) => String(a.buyerContact || a.buyerName || "").localeCompare(String(b.buyerContact || b.buyerName || ""), "vi"),
         seller: (a, b) => String(a.sellerName).localeCompare(String(b.sellerName), "vi"),
@@ -1489,7 +1579,7 @@
     }
 
     // ---------- TÌM THEO TỪNG CỘT ----------
-    const CF_KEYS = ["date", "number", "tax", "seller", "buyer", "rate", "vat", "total"];
+    const CF_KEYS = ["date", "number", "kind", "tax", "seller", "buyer", "rate", "vat", "total"];
     function cfVals() {
         const o = {}; let any = false;
         CF_KEYS.forEach(k => { const el = document.getElementById("cf_" + k), v = el ? el.value.trim() : ""; if (v) { o[k] = v; any = true; } });
@@ -1514,6 +1604,7 @@
         return inv._c[k];
     }
     function cfOne(inv, k, q) {
+        if (k === "kind") { const t = norm(invMa(inv).label + " " + invKind(inv).label); return norm(q).split(/\s+/).every(w => t.includes(w)); }
         if (k === "vat") return numMatch(inv.vatAmount, q);
         if (k === "total") return numMatch(inv.totalAmount, q);
         const t = cfText(inv, k); return norm(q).split(/\s+/).every(w => t.includes(w));
@@ -1537,6 +1628,7 @@
         switch (k) {
             case "date": return inv.date ? inv.date.split("-").reverse().join("/") : "";
             case "number": return inv.series || "";
+            case "kind": return invMa(inv).label;
             case "tax": return inv.sellerTax || "";
             case "seller": return inv.sellerName || "";
             case "buyer": return inv.buyerContact || inv.buyerName || "";
@@ -1864,7 +1956,7 @@
             "Tính chất","Tên hàng hóa/dịch vụ","Mã SP","ĐVT","Số lượng","Đơn giá","Chiết khấu",
             "Giá trị chưa thuế","Thuế suất","Tiền thuế","Tổng giảm trừ ko chịu thuế",
             "Tổng tiền phí","Tổng CKTM","Tổng giảm trừ khác","Giá trị thanh toán",
-            "Trạng thái HD","Kết quả kiểm tra",
+            "Loại hóa đơn (gốc/điều chỉnh/thay thế)","Kết quả kiểm tra",
             "Loại liên quan","Số HĐ liên quan","Ký hiệu HĐ liên quan","Ngày HĐ liên quan","Ghi chú liên quan"];
         const WIDTHS = [27.8,17.8,12.8,12.8,12.8,18.8,42.8,21.8,45.8,34.8,17.8,45.8,23.8,21.8,41.8,12.8,12.8,12.8,12.8,12.8,
             20.8,12.8,12.8,29.8,16.8,12.8,21.8,21.8,16.8,19.8,20.8,18.8,23.8,20.8,20.8];
@@ -1875,8 +1967,9 @@
             txt(inv.buyerName), txt(inv.buyerTax), txt(inv.buyerAddr), txt(inv.buyerContact)
         ];
         const tailCols = (inv) => [
-            inv.status, inv.checkResult,
-            txt(inv.relType), txt(inv.relNumber), txt(inv.relSeries), txt(inv.relDate), txt(inv.relNote)
+            invKind(inv).label, inv.checkResult,
+            txt(inv.relType), txt(inv.relNumber), txt(inv.relSeries), txt(inv.relDate),
+            txt([inv.relNote].concat(invKind(inv).lines.filter(l => /^Bị /.test(l.text)).map(l => l.text)).filter(Boolean).join("; "))
         ];
 
         const buildRows = (list) => {
