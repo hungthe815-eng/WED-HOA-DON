@@ -91,12 +91,12 @@
             background: var(--bg);
             color: var(--text);
             min-height: 100vh;
-            padding: 14px 18px 24px;
+            padding: 8px 12px 20px;
             -webkit-font-smoothing: antialiased;
             line-height: 1.45;
         }
 
-        .container { max-width: 1720px; margin: 0 auto; }
+        .container { width: 100%; max-width: 100%; margin: 0; padding: 0; }
         .card {
             background: var(--card);
             border-radius: var(--radius-lg);
@@ -833,10 +833,10 @@
         .modal-content {
             background: var(--card);
             width: 100%;
-            max-width: 960px;
-            max-height: 92vh;
+            max-width: 1100px;
+            max-height: 94vh;
             border-radius: var(--radius-lg);
-            padding: 24px;
+            padding: 22px 24px;
             overflow-y: auto;
             position: relative;
             box-shadow: var(--shadow-lg);
@@ -844,6 +844,15 @@
             animation: popIn 0.18s ease-out;
             display: flex;
             flex-direction: column;
+            transition: all 0.2s ease;
+        }
+        .modal-content.fullscreen {
+            max-width: 98vw !important;
+            width: 98vw !important;
+            height: 97vh !important;
+            max-height: 97vh !important;
+            border-radius: 8px !important;
+            padding: 18px 22px !important;
         }
         @keyframes popIn { from { opacity: 0; transform: translateY(12px) scale(0.98); } to { opacity: 1; transform: none; } }
         .modal-header {
@@ -1239,6 +1248,11 @@
             <div id="advFiltersPanel" class="advanced-filters-panel">
                 <div class="adv-grid">
                     <div class="adv-col">
+                        <label>MST Người Mua / Chi Nhánh</label>
+                        <input class="tb-ctl" id="advBuyerTax" list="dl_buyer_tax" autocomplete="off" placeholder="Gõ hoặc chọn MST mua..." oninput="debounceFilter()" onfocus="fillBuyerTaxList()">
+                        <datalist id="dl_buyer_tax"></datalist>
+                    </div>
+                    <div class="adv-col">
                         <label>Loại hóa đơn</label>
                         <select id="advKind" class="tb-ctl" onchange="filterTable()">
                             <option value="">Tất cả loại</option>
@@ -1400,17 +1414,17 @@
                 <button class="btn btn-subtle btn-sm" id="prevInvBtn" onclick="navigateDetail(-1)" title="Hóa đơn trước (phím [ )">◀ Trước</button>
                 <span id="detailIndexText" style="font-size:12px;color:var(--muted)"></span>
                 <button class="btn btn-subtle btn-sm" id="nextInvBtn" onclick="navigateDetail(1)" title="Hóa đơn sau (phím ] )">Sau ▶</button>
+                <button class="btn btn-subtle btn-icon" id="modalMaxBtn" onclick="toggleModalFullscreen()" title="Phóng to toàn màn hình">⛶</button>
                 <button class="close-btn" onclick="closeModal()" title="Đóng (Esc)">&times;</button>
             </div>
         </div>
 
         <!-- TABS HEADER -->
         <div class="tabs-header">
-            <button class="tab-btn active" onclick="switchDetailTab(0)">📋 Tổng quan</button>
-            <button class="tab-btn" onclick="switchDetailTab(1)">🏢 Bên bán & Bên mua</button>
-            <button class="tab-btn" onclick="switchDetailTab(2)">📦 Chi tiết hàng hóa / dịch vụ</button>
-            <button class="tab-btn" onclick="switchDetailTab(3)">📁 Tệp hóa đơn (Xem & Tải)</button>
-            <button class="tab-btn" onclick="switchDetailTab(4)">🔗 Hóa đơn liên quan & Lịch sử</button>
+            <button class="tab-btn active" onclick="switchDetailTab(0)">📄 Hóa đơn đầy đủ</button>
+            <button class="tab-btn" onclick="switchDetailTab(1)">📁 Tệp hóa đơn (Xem & Tải)</button>
+            <button class="tab-btn" onclick="switchDetailTab(2)">🔗 Hóa đơn liên quan & Lịch sử</button>
+            <button class="tab-btn" onclick="switchDetailTab(3)">📋 Thuộc tính chi tiết</button>
         </div>
 
         <!-- TAB BODIES -->
@@ -1418,7 +1432,6 @@
         <div id="tabPane1" class="tab-pane"></div>
         <div id="tabPane2" class="tab-pane"></div>
         <div id="tabPane3" class="tab-pane"></div>
-        <div id="tabPane4" class="tab-pane"></div>
     </div>
 </div>
 
@@ -2000,8 +2013,17 @@
         return Math.round((due - today) / 864e5);
     }
 
-    // ---------- XEM CHI TIẾT HÓA ĐƠN & 5 TABS ----------
+    // ---------- XEM CHI TIẾT HÓA ĐƠN ĐẦY ĐỦ ----------
     let currentDetailInv = null;
+
+    function toggleModalFullscreen() {
+        const content = document.querySelector("#viewModal .modal-content");
+        const btn = document.getElementById("modalMaxBtn");
+        const isFull = content.classList.toggle("fullscreen");
+        btn.textContent = isFull ? "🗗" : "⛶";
+        btn.title = isFull ? "Thu nhỏ lại kích thước chuẩn" : "Phóng to toàn màn hình";
+    }
+
     function viewInvoice(index, invObj) {
         currentDetailIndex = index;
         const inv = invObj || currentList[index];
@@ -2017,58 +2039,13 @@
         document.getElementById("prevInvBtn").disabled = index <= 0;
         document.getElementById("nextInvBtn").disabled = index < 0 || index >= currentList.length - 1;
 
-        // TAB 0: TỔNG QUAN
-        document.getElementById("tabPane0").innerHTML = `
-            <div class="info-grid">
-                <div>
-                    <p><b>Loại hóa đơn:</b> ${esc(inv.invoiceType)}</p>
-                    <p><b>Mẫu số - Ký hiệu:</b> ${esc(inv.templateCode)} - ${esc(inv.series)}</p>
-                    <p><b>Số hóa đơn:</b> <b style="color:var(--red);font-size:15px">${esc(inv.number)}</b></p>
-                    <p><b>Phân loại:</b> <span class="kbadge ${ma.cls}">${ma.label}</span> <span class="kbadge ${kd.cls}">${kd.label}</span></p>
-                    <p><b>Cơ quan thuế:</b> ${esc(inv.checkResult)}</p>
-                </div>
-                <div>
-                    <p><b>Ngày lập:</b> ${esc(inv.date)}</p>
-                    <p><b>Ngày ký số:</b> ${esc(inv.signDate || inv.date)}</p>
-                    <p><b>Người mua hàng:</b> ${esc(inv.buyerContact || "—")}</p>
-                    <p><b>Trạng thái công nợ:</b> ${debtPaid[invKey(inv)] ? '<span class="due-ok">✔ Đã thanh toán</span>' : '<span class="due-soon">Chưa thanh toán</span>'}</p>
-                </div>
-            </div>
-            <div class="total-box">
-                <p>Cộng tiền hàng chưa thuế: <b>${fmt(inv.totalBeforeTax)} VNĐ</b></p>
-                <p>Tiền thuế GTGT: <b>${fmt(inv.vatAmount)} VNĐ</b></p>
-                <p class="grand">Tổng tiền thanh toán: ${fmt(inv.totalAmount)} VNĐ</p>
-                ${inv.totalText ? `<p class="words">(Bằng chữ: ${esc(inv.totalText)})</p>` : ''}
-            </div>
-        `;
-
-        // TAB 1: BÊN BÁN & BÊN MUA
-        document.getElementById("tabPane1").innerHTML = `
-            <div class="info-grid">
-                <div>
-                    <h4 class="section-title">🏢 Đơn Vị Bán Hàng</h4>
-                    <p><b>Tên công ty:</b> ${esc(inv.sellerName)}</p>
-                    <p><b>Mã số thuế:</b> <span class="badge-tax">${esc(inv.sellerTax)}</span></p>
-                    <p><b>Địa chỉ:</b> ${esc(inv.sellerAddr || "—")}</p>
-                </div>
-                <div>
-                    <h4 class="section-title">👤 Đơn Vị Mua Hàng</h4>
-                    <p><b>Tên đơn vị:</b> ${esc(inv.buyerName || "—")}</p>
-                    <p><b>Mã số thuế:</b> ${inv.buyerTax ? `<span class="badge-tax">${esc(inv.buyerTax)}</span>` : "—"}</p>
-                    <p><b>Địa chỉ đơn vị:</b> ${esc(inv.buyerAddr || "—")}</p>
-                    <p><b>Người liên hệ:</b> ${esc(inv.buyerContact || "—")}</p>
-                    ${inv.buyerShipAddr ? `<p><b>Địa chỉ nhận hàng:</b> ${esc(inv.buyerShipAddr)}</p>` : ""}
-                </div>
-            </div>
-        `;
-
-        // TAB 2: CHI TIẾT HÀNG HÓA
+        // BẢNG DÒNG HÀNG CHI TIẾT
         let itemsHtml = "";
         (inv.items || []).forEach((item, idx) => {
             itemsHtml += `
                 <tr>
                     <td class="text-center stt">${idx + 1}</td>
-                    <td><b>${esc(item.name)}</b>${item.code ? `<br><small class="sub">Mã: ${esc(item.code)}</small>` : ""}</td>
+                    <td><b>${esc(item.name)}</b>${item.code ? `<br><small class="sub">Mã SP: ${esc(item.code)}</small>` : ""}</td>
                     <td class="text-center">${esc(item.unit || "—")}</td>
                     <td class="text-center">${fmt(item.qty)}</td>
                     <td class="text-right">${fmt(item.price)}</td>
@@ -2079,8 +2056,58 @@
                 </tr>
             `;
         });
-        document.getElementById("tabPane2").innerHTML = `
-            <div class="table-wrap" style="max-height:420px">
+
+        // LIÊN KẾT HÓA ĐƠN
+        let relHtml = "";
+        if (kd.lines.length) {
+            relHtml = `<div class="rel-box" style="margin-bottom:14px">
+                <b>🔗 Liên kết hóa đơn:</b> ${kd.lines.map(l => l.key ? `${esc(l.text)} — <a data-k="${qa(l.key)}" onclick="viewRel(this.dataset.k)">Xem HĐ liên quan</a>` : `${esc(l.text)} <i>(chưa có file trong DATA)</i>`).join(" | ")}
+                ${inv.relNote ? `<br><span class="sub">Ghi chú: ${esc(inv.relNote)}</span>` : ""}
+            </div>`;
+        }
+
+        // TAB 0: TOÀN BỘ HÓA ĐƠN ĐẦY ĐỦ (FULL INVOICE ALL-IN-ONE)
+        document.getElementById("tabPane0").innerHTML = `
+            <div style="background:var(--bg);border:1px solid var(--line);border-radius:var(--radius);padding:14px 18px;margin-bottom:14px">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;border-bottom:1px dashed var(--line);padding-bottom:10px;margin-bottom:10px">
+                    <div>
+                        <span style="font-size:15px;font-weight:700;color:var(--text)">${esc(inv.invoiceType)}</span>
+                        <div class="sub" style="margin-top:2px">
+                            Mẫu số: <b>${esc(inv.templateCode)}</b> · Ký hiệu: <b>${esc(inv.series)}</b> · Số: <b style="color:var(--red);font-size:15px">${esc(inv.number)}</b>
+                        </div>
+                    </div>
+                    <div style="text-align:right">
+                        <div>Ngày lập: <b>${esc(inv.date)}</b> · Ngày ký số: <b>${esc(inv.signDate || inv.date)}</b></div>
+                        <div style="margin-top:2px">
+                            <span class="kbadge ${ma.cls}">${ma.label}</span>
+                            <span class="kbadge ${kd.cls}">${kd.label}</span>
+                            <span class="sub" style="margin-left:6px">${esc(inv.checkResult)}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-grid" style="background:none;border:none;padding:0;margin:0;gap:20px">
+                    <div>
+                        <h4 class="section-title" style="margin-top:0">🏢 Đơn Vị Bán Hàng</h4>
+                        <p><b>Tên đơn vị:</b> ${esc(inv.sellerName)}</p>
+                        <p><b>Mã số thuế:</b> <span class="badge-tax">${esc(inv.sellerTax)}</span></p>
+                        <p><b>Địa chỉ:</b> ${esc(inv.sellerAddr || "—")}</p>
+                    </div>
+                    <div>
+                        <h4 class="section-title" style="margin-top:0">👤 Đơn Vị Mua Hàng / Chi Nhánh</h4>
+                        <p><b>Tên đơn vị:</b> ${esc(inv.buyerName || "—")}</p>
+                        <p><b>Mã số thuế:</b> ${inv.buyerTax ? `<span class="badge-tax clickable" title="Lọc theo MST người mua này" onclick="filterByBuyerTax('${esc(inv.buyerTax)}')">${esc(inv.buyerTax)}</span>` : "—"}</p>
+                        <p><b>Địa chỉ:</b> ${esc(inv.buyerAddr || "—")}</p>
+                        <p><b>Người mua hàng:</b> ${esc(inv.buyerContact || "—")}</p>
+                        ${inv.buyerShipAddr ? `<p><b>Địa chỉ giao hàng:</b> ${esc(inv.buyerShipAddr)}</p>` : ""}
+                    </div>
+                </div>
+            </div>
+
+            ${relHtml}
+
+            <h4 class="section-title">📦 Chi tiết hàng hóa, dịch vụ</h4>
+            <div class="table-wrap" style="max-height:40vh;margin-bottom:14px">
                 <table>
                     <thead>
                         <tr>
@@ -2089,57 +2116,82 @@
                             <th style="width: 70px;" class="text-center">ĐVT</th>
                             <th style="width: 70px;" class="text-center">Số lượng</th>
                             <th style="width: 110px;" class="text-right">Đơn giá</th>
-                            <th style="width: 90px;" class="text-right">Chiết khấu</th>
+                            <th style="width: 80px;" class="text-right">Chiết khấu</th>
                             <th style="width: 120px;" class="text-right">Thành tiền</th>
                             <th style="width: 80px;" class="text-center">Thuế suất</th>
                             <th style="width: 100px;" class="text-right">Tiền thuế</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${itemsHtml || '<tr><td colspan="9" class="text-center">Không có chi tiết dòng hàng hóa</td></tr>'}
+                        ${itemsHtml || '<tr><td colspan="9" class="text-center">Không có chi tiết từng dòng hàng hóa</td></tr>'}
                     </tbody>
                 </table>
             </div>
+
+            <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px">
+                <div style="display:flex;gap:6px">
+                    <button class="btn btn-primary" onclick="downloadPdf(${index >= 0 ? index : 0})">📄 In / Tải PDF</button>
+                    <button class="btn btn-outline" onclick="downloadXml(${index >= 0 ? index : 0})">💾 Tải XML</button>
+                    <button class="btn btn-subtle" onclick="copyText('${(inv.series ? inv.series + '-' : '') + inv.number}', 'Số HĐ')">📋 Copy số HĐ</button>
+                </div>
+                <div class="total-box" style="margin:0">
+                    <p>Cộng tiền hàng chưa thuế: <b>${fmt(inv.totalBeforeTax)} VNĐ</b></p>
+                    <p>Tiền thuế GTGT: <b>${fmt(inv.vatAmount)} VNĐ</b></p>
+                    <p class="grand">Tổng thanh toán: ${fmt(inv.totalAmount)} VNĐ</p>
+                    ${inv.totalText ? `<p class="words">(Bằng chữ: ${esc(inv.totalText)})</p>` : ''}
+                </div>
+            </div>
         `;
 
-        // TAB 3: TỆP HÓA ĐƠN & PREVIEW
-        document.getElementById("tabPane3").innerHTML = `
+        // TAB 1: TỆP HÓA ĐƠN & BẢN IN PREVIEW
+        document.getElementById("tabPane1").innerHTML = `
             <div class="file-preview-card">
                 <div class="file-preview-header">
                     <div>
-                        <b>📁 Nguồn file lưu trữ:</b> <code>${esc(inv.path)}</code> ${inv.entry ? `› <code>${esc(inv.entry)}</code>` : ""}
+                        <b>📁 Nguồn file:</b> <code>${esc(inv.path)}</code> ${inv.entry ? `› <code>${esc(inv.entry)}</code>` : ""}
                     </div>
                     <div style="display:flex;gap:6px">
-                        <button class="btn btn-primary" onclick="downloadPdf(${index >= 0 ? index : 0})">📄 Xem / In PDF</button>
-                        <button class="btn btn-outline" onclick="downloadXml(${index >= 0 ? index : 0})">💾 Tải File XML</button>
+                        <button class="btn btn-primary" onclick="downloadPdf(${index >= 0 ? index : 0})">📄 In / Tải PDF</button>
+                        <button class="btn btn-outline" onclick="downloadXml(${index >= 0 ? index : 0})">💾 Tải XML</button>
                     </div>
                 </div>
-                <div style="font-size:12.5px;color:var(--muted);margin-bottom:8px">
-                    Bản thể hiện chuẩn in A4 tạo trực tiếp từ file XML gốc:
-                </div>
-                <div style="border:1px solid var(--line);border-radius:8px;padding:12px;background:#fff;max-height:380px;overflow:auto">
+                <div style="border:1px solid var(--line);border-radius:8px;padding:12px;background:#fff;max-height:55vh;overflow:auto">
                     ${pdfHtml(inv)}
                 </div>
             </div>
         `;
 
-        // TAB 4: LIÊN KẾT & LỊCH SỬ
-        let relHtml = "";
-        if (kd.lines.length) {
-            relHtml = `<div class="rel-box">
-                <b>🔗 Liên kết hóa đơn:</b><br>
-                ${kd.lines.map(l => l.key ? `${esc(l.text)} — <a data-k="${qa(l.key)}" onclick="viewRel(this.dataset.k)">Mở xem hóa đơn này</a>` : `${esc(l.text)} <i>(chưa có file đính kèm trong thư mục DATA)</i>`).join("<br>")}
-                ${inv.relNote ? `<br><span class="sub">Ghi chú điều chỉnh: ${esc(inv.relNote)}</span>` : ""}
-            </div>`;
-        } else {
-            relHtml = `<p class="sub">Đây là hóa đơn gốc, hiện chưa có hóa đơn điều chỉnh hoặc thay thế nào trong hệ thống.</p>`;
-        }
-        document.getElementById("tabPane4").innerHTML = `
-            ${relHtml}
-            <h4 class="section-title">Nhật ký xử lý nội bộ</h4>
-            <div style="font-size:13px;color:var(--muted)">
-                - Ngày đọc file và phân tích: ${new Date().toLocaleDateString("vi-VN")}<br>
-                - Trạng thái kiểm tra chữ ký số: Hợp lệ theo chuẩn CQT
+        // TAB 2: LIÊN KẾT & LỊCH SỬ
+        document.getElementById("tabPane2").innerHTML = `
+            ${relHtml || '<p class="sub">Hóa đơn gốc, chưa có liên kết điều chỉnh hoặc thay thế nào.</p>'}
+            <h4 class="section-title">Thông tin xác thực điện tử</h4>
+            <div style="font-size:13px;color:var(--muted);line-height:1.7">
+                - Chữ ký số người bán: Đã ký số hợp lệ<br>
+                - Mã CQT cấp: ${esc(inv.checkResult)}<br>
+                - Trạng thái công nợ hiện tại: ${debtPaid[invKey(inv)] ? '<span class="due-ok">✔ Đã thanh toán</span>' : '<span class="due-soon">Chưa thanh toán</span>'}
+            </div>
+        `;
+
+        // TAB 3: THUỘC TÍNH CHI TIẾT
+        document.getElementById("tabPane3").innerHTML = `
+            <div class="info-grid">
+                <div>
+                    <h4 class="section-title" style="margin-top:0">Thuộc tính kỹ thuật</h4>
+                    <p><b>Loại hóa đơn:</b> ${esc(inv.invoiceType)}</p>
+                    <p><b>Mẫu số:</b> ${esc(inv.templateCode)}</p>
+                    <p><b>Ký hiệu:</b> ${esc(inv.series)}</p>
+                    <p><b>Số hóa đơn:</b> ${esc(inv.number)}</p>
+                    <p><b>Ngày lập:</b> ${esc(inv.date)}</p>
+                    <p><b>Ngày ký số:</b> ${esc(inv.signDate || inv.date)}</p>
+                </div>
+                <div>
+                    <h4 class="section-title" style="margin-top:0">Dữ liệu phân loại</h4>
+                    <p><b>Phân loại TT78:</b> ${ma.label} (${ma.tip})</p>
+                    <p><b>Quan hệ hóa đơn:</b> ${kd.label}</p>
+                    <p><b>Mã số thuế bên bán:</b> ${esc(inv.sellerTax)}</p>
+                    <p><b>Mã số thuế người mua:</b> ${esc(inv.buyerTax || "—")}</p>
+                    <p><b>Người mua hàng:</b> ${esc(inv.buyerContact || "—")}</p>
+                </div>
             </div>
         `;
 
@@ -2541,7 +2593,7 @@
     }
 
     function clearFilters() {
-        ["searchInput", "dateFrom", "dateTo", "expFilter", "advKind", "advRate", "advDebt", "advMinTotal", "advMaxTotal"].forEach(id => {
+        ["searchInput", "dateFrom", "dateTo", "expFilter", "advKind", "advRate", "advDebt", "advBuyerTax", "advMinTotal", "advMaxTotal"].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.value = "";
         });
@@ -2614,7 +2666,37 @@
         return norm(q).split(/\s+/).every(w => t.includes(w));
     }
 
+    function fillBuyerTaxList() {
+        const dl = document.getElementById("dl_buyer_tax");
+        if (!dl) return;
+        const counts = new Map();
+        allInvoices.forEach(i => {
+            if (i.buyerTax) {
+                counts.set(i.buyerTax, (counts.get(i.buyerTax) || 0) + 1);
+            }
+        });
+        const arr = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+        dl.innerHTML = arr.map(([tax, n]) => {
+            const sample = allInvoices.find(i => i.buyerTax === tax);
+            const name = sample ? (sample.buyerName || sample.buyerContact || "") : "";
+            return `<option value="${qa(tax)}" label="${qa(name)} (${n} HĐ)"></option>`;
+        }).join("");
+    }
+
+    function filterByBuyerTax(tax) {
+        closeModal();
+        const panel = document.getElementById("advFiltersPanel");
+        if (panel && !panel.classList.contains("open")) toggleAdvancedFilters();
+        const input = document.getElementById("advBuyerTax");
+        if (input) {
+            input.value = tax;
+            filterTable();
+            showToast(`Đang lọc theo MST mua: ${tax}`, "info");
+        }
+    }
+
     function filterCtx() {
+        const advBuyerTaxEl = document.getElementById("advBuyerTax");
         return {
             toks: norm(document.getElementById("searchInput").value).split(/\s+/).filter(Boolean),
             from: document.getElementById("dateFrom").value,
@@ -2623,6 +2705,7 @@
             advKind: document.getElementById("advKind").value,
             advRate: document.getElementById("advRate").value,
             advDebt: document.getElementById("advDebt").value,
+            advBuyerTax: advBuyerTaxEl ? advBuyerTaxEl.value.trim() : "",
             advMin: Number(document.getElementById("advMinTotal").value) || 0,
             advMax: Number(document.getElementById("advMaxTotal").value) || 0,
             cf: cfVals()
@@ -2633,6 +2716,13 @@
         if (c.from && inv.date < c.from) return false;
         if (c.to && inv.date > c.to) return false;
         if (c.expF && (c.expF === "__none" ? expOf(inv.sellerTax) !== NOCAT : expOf(inv.sellerTax) !== c.expF)) return false;
+
+        // Lọc theo MST người mua / chi nhánh
+        if (c.advBuyerTax) {
+            const bt = norm(inv.buyerTax || "");
+            const qbt = norm(c.advBuyerTax);
+            if (!bt.includes(qbt)) return false;
+        }
 
         // Advanced filter dropdowns
         if (c.advKind) {
@@ -2679,6 +2769,7 @@
         const chips = [];
         if (c.toks.length) chips.push({ label: `Tìm: "${document.getElementById("searchInput").value}"`, fn: () => clearSearchInput() });
         if (c.from || c.to) chips.push({ label: `Kỳ: ${c.from || "..."} → ${c.to || "..."}`, fn: () => { document.getElementById("dateFrom").value = ""; document.getElementById("dateTo").value = ""; filterTable(); } });
+        if (c.advBuyerTax) chips.push({ label: `MST Mua: ${c.advBuyerTax}`, fn: () => { document.getElementById("advBuyerTax").value = ""; filterTable(); } });
         if (c.expF) chips.push({ label: `Chi phí: ${document.getElementById("expFilter").selectedOptions[0].text}`, fn: () => { document.getElementById("expFilter").value = ""; filterTable(); } });
         if (c.advKind) chips.push({ label: `Loại: ${document.getElementById("advKind").selectedOptions[0].text}`, fn: () => { document.getElementById("advKind").value = ""; filterTable(); } });
         if (c.advRate) chips.push({ label: `Thuế: ${c.advRate}`, fn: () => { document.getElementById("advRate").value = ""; filterTable(); } });
