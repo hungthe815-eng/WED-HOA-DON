@@ -2013,6 +2013,35 @@
         return Math.round((due - today) / 864e5);
     }
 
+    // ---------- TÊN PHÁP NHÂN CHUẨN CHO MST NGƯỜI MUA & CHI NHÁNH ----------
+    const CANONICAL_BUYER_NAMES = {
+        "0101595681": "CÔNG TY CỔ PHẦN PHIM THIÊN NGÂN",
+        "0316379088": "CÔNG TY TNHH MỘT THÀNH VIÊN GALAXY LINKS"
+    };
+
+    function getCanonicalBuyerName(tax, invoices) {
+        if (!tax) return "";
+        if (CANONICAL_BUYER_NAMES[tax]) return CANONICAL_BUYER_NAMES[tax];
+        const nameCounts = new Map();
+        const list = invoices || allInvoices;
+        list.forEach(i => {
+            if (i.buyerTax === tax && i.buyerName) {
+                // Ưu tiên tên có chứa Thiên Ngân hoặc Công ty
+                const w = (i.buyerName.toUpperCase().includes("THIEN NGAN") || i.buyerName.toUpperCase().includes("THIÊN NGÂN") || i.buyerName.toUpperCase().includes("CÔNG TY")) ? 10 : 1;
+                nameCounts.set(i.buyerName, (nameCounts.get(i.buyerName) || 0) + w);
+            }
+        });
+        let bestName = "";
+        let maxCount = -1;
+        for (const [name, count] of nameCounts.entries()) {
+            if (count > maxCount) {
+                maxCount = count;
+                bestName = name;
+            }
+        }
+        return bestName || "CÔNG TY CỔ PHẦN PHIM THIÊN NGÂN";
+    }
+
     // ---------- XEM CHI TIẾT HÓA ĐƠN ĐẦY ĐỦ ----------
     let currentDetailInv = null;
 
@@ -2678,9 +2707,8 @@
         });
         const arr = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
         dl.innerHTML = arr.map(([tax, n]) => {
-            const sample = allInvoices.find(i => i.buyerTax === tax);
-            const name = sample ? (sample.buyerName || sample.buyerContact || "") : "";
-            return `<option value="${qa(tax)}" label="${qa(name)} (${n} HĐ)"></option>`;
+            const name = getCanonicalBuyerName(tax, allInvoices);
+            return `<option value="${qa(tax)}" label="${qa(name)} (${n.toLocaleString('vi-VN')} HĐ)"></option>`;
         }).join("");
     }
 
