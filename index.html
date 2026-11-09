@@ -970,6 +970,11 @@
             font-weight: 700;
         }
         .total-box .words { font-style: italic; color: var(--muted); font-size: 12.5px; margin-top: 4px; }
+        .tax-split { width: 100%; border-collapse: collapse; margin: 0 0 8px; font-size: 12.5px; }
+        .tax-split th { color: var(--muted); font-weight: 600; font-size: 11.5px; text-align: right; padding: 2px 0 4px 10px; border-bottom: 1px solid var(--primary-border); }
+        .tax-split td { text-align: right; padding: 3px 0 3px 10px; font-variant-numeric: tabular-nums; }
+        .tax-split th:first-child, .tax-split td:first-child { text-align: left; padding-left: 0; }
+        .tax-split tbody tr:last-child td { padding-bottom: 8px; }
         .rel-box {
             margin: 0 0 14px;
             padding: 12px 14px;
@@ -2165,6 +2170,7 @@
                     <button class="btn btn-subtle" onclick="copyText('${(inv.series ? inv.series + '-' : '') + inv.number}', 'Số HĐ')">📋 Copy số HĐ</button>
                 </div>
                 <div class="total-box" style="margin:0">
+                    ${taxSplitHtml(inv)}
                     <p>Cộng tiền hàng chưa thuế: <b>${fmt(inv.totalBeforeTax)} VNĐ</b></p>
                     <p>Tiền thuế GTGT: <b>${fmt(inv.vatAmount)} VNĐ</b></p>
                     <p class="grand">Tổng thanh toán: ${fmt(inv.totalAmount)} VNĐ</p>
@@ -2252,6 +2258,43 @@
     function esc(v) { return String(v == null ? "" : v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
     const qa = (v) => esc(v).replace(/"/g, "&quot;");
 
+    // ---------- TÁCH TIỀN TRƯỚC THUẾ / TIỀN THUẾ THEO TỪNG LOẠI THUẾ SUẤT ----------
+    function taxLabel(r) {
+        const k = String(r == null ? "" : r).trim();
+        if (!k || k === "—") return "Không rõ thuế suất";
+        if (/^KKKNT$/i.test(k)) return "KKKNT (không kê khai, nộp thuế)";
+        if (/^KCT$/i.test(k)) return "KCT (không chịu thuế)";
+        if (/^\d+([.,]\d+)?$/.test(k)) return "Thuế suất " + k + "%";
+        if (/%$/.test(k)) return "Thuế suất " + k;
+        return k;
+    }
+    function taxBreakdown(inv) {
+        const m = new Map();
+        (inv.items || []).forEach(it => {
+            const key = String(it.vat == null ? "" : it.vat).trim() || "—";
+            const g = m.get(key) || { rate: key, pre: 0, vat: 0 };
+            g.pre += Number(it.amount) || 0;
+            g.vat += Number(it.vatAmt) || 0;
+            m.set(key, g);
+        });
+        const rank = r => { const n = parseFloat(r); return isNaN(n) ? -1 : n; };
+        return [...m.values()].sort((a, b) => rank(b.rate) - rank(a.rate)).map(g => ({ ...g, pre: Math.round(g.pre * 100) / 100, vat: Math.round(g.vat * 100) / 100 }));
+    }
+    function taxSplitHtml(inv, forPrint) {
+        const g = taxBreakdown(inv);
+        if (!g.length) return "";
+        const n = v => Number(v).toLocaleString("vi-VN");
+        if (forPrint) {
+            const c = "border:1px solid #999;padding:4px 6px;";
+            return `<table style="border-collapse:collapse;margin:10px 0 0 auto;font-size:12px">
+                <thead><tr><th style="${c}background:#eee;text-align:left">Loại thuế</th><th style="${c}background:#eee;text-align:right">Tiền trước thuế</th><th style="${c}background:#eee;text-align:right">Tiền thuế</th></tr></thead>
+                <tbody>${g.map(x => `<tr><td style="${c}">${esc(taxLabel(x.rate))}</td><td style="${c}text-align:right">${n(x.pre)}</td><td style="${c}text-align:right">${n(x.vat)}</td></tr>`).join("")}</tbody></table>`;
+        }
+        return `<table class="tax-split">
+            <thead><tr><th>Loại thuế</th><th>Tiền trước thuế</th><th>Tiền thuế</th></tr></thead>
+            <tbody>${g.map(x => `<tr><td>${esc(taxLabel(x.rate))}</td><td>${n(x.pre)}</td><td><b>${n(x.vat)}</b></td></tr>`).join("")}</tbody></table>`;
+    }
+
     // ---------- XUẤT VÀ IN PDF ----------
     function pdfHtml(inv) {
         const f = (v) => (v === "" || v == null || isNaN(Number(v))) ? "" : Number(v).toLocaleString("vi-VN");
@@ -2282,6 +2325,7 @@
                 <thead><tr><th>STT</th><th>Tên hàng hóa, dịch vụ</th><th>ĐVT</th><th>Số lượng</th><th>Đơn giá</th><th>Thành tiền</th><th>Thuế</th></tr></thead>
                 <tbody>${rows}</tbody>
             </table>
+            ${taxSplitHtml(inv, true)}
             <div style="text-align:right;margin-top:10px;line-height:1.7">
                 Cộng tiền hàng: <b>${f(inv.totalBeforeTax)}</b> VNĐ<br>
                 Tiền thuế GTGT: <b>${f(inv.vatAmount)}</b> VNĐ<br>
